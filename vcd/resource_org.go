@@ -77,7 +77,6 @@ func resourceOrgCreate(d *schema.ResourceData, m interface{}) error {
 	isEnabled := d.Get("is_enabled").(bool)
 
 	settings := getSettings(d)
-
 	log.Printf("CREATING ORG: %s", orgName)
 	_, id, err := vcdClient.CreateOrg(orgName, fullName, *settings, isEnabled)
 
@@ -96,8 +95,6 @@ func resourceOrgDelete(d *schema.ResourceData, m interface{}) error {
 
 	//DELETING
 	vcdClient := m.(*VCDClient)
-
-	//delete everything else in the org
 	log.Printf("Deleting Org with id %s", d.State().ID)
 	_, err := vcdClient.DeleteOrg(d.State().ID)
 	log.Printf("Org with id %s deleted", d.State().ID)
@@ -154,7 +151,6 @@ func resourceOrgUpdate(d *schema.ResourceData, m interface{}) error {
 	if err != nil {
 		fmt.Errorf("Error updating org %#v", err)
 	}
-
 	return nil
 }
 

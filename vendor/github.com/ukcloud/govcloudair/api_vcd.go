@@ -277,6 +277,7 @@ func (c *VCDClient) DeleteOrg(orgId string) (bool, error) {
 	req = c.Client.NewRequest(map[string]string{}, "DELETE", s, nil)
 
 	_ , err = checkResp(c.Client.Http.Do(req))
+
 	if err != nil {
 		return false, fmt.Errorf("error getting Org %s: %s", orgId, err)
 	}
