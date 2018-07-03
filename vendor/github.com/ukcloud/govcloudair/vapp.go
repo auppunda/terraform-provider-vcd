@@ -60,7 +60,8 @@ func (v *VApp) Refresh() error {
 	return nil
 }
 
-func (v *VApp) AddVM(orgvdcnetwork OrgVDCNetwork, vapptemplate VAppTemplate, name string) (Task, error) {
+func (v *VApp) AddVM(orgvdcnetwork OrgVDCNetwork, vapptemplate VAppTemplate, name string, accept_all_eulas bool) (Task, error) {
+
 
 	vcomp := &types.ReComposeVAppParams{
 		Ovf:         "http://schemas.dmtf.org/ovf/envelope/1",
@@ -94,6 +95,7 @@ func (v *VApp) AddVM(orgvdcnetwork OrgVDCNetwork, vapptemplate VAppTemplate, nam
 				ContainerNetwork: orgvdcnetwork.OrgVDCNetwork.Name,
 			},
 		},
+		AllEULAsAccepted: accept_all_eulas,
 	}
 
 	output, _ := xml.MarshalIndent(vcomp, "  ", "    ")
@@ -113,6 +115,8 @@ func (v *VApp) AddVM(orgvdcnetwork OrgVDCNetwork, vapptemplate VAppTemplate, nam
 	if err != nil {
 		return Task{}, fmt.Errorf("error instantiating a new VM: %s", err)
 	}
+
+
 
 	task := NewTask(v.c)
 

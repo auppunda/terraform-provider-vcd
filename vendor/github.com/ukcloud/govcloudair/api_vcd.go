@@ -8,6 +8,11 @@ import (
 	"os"
 	"sync"
 	"time"
+	"encoding/xml"
+	"bytes"
+	"strings"
+
+	types "github.com/ukcloud/govcloudair/types/v56"
 )
 
 type VCDClient struct {
@@ -17,6 +22,7 @@ type VCDClient struct {
 	Client      Client  // Client for the underlying VCD instance
 	sessionHREF url.URL // HREF for the session API
 	QueryHREF   url.URL // HREF for the query API
+	HREF 		url.URL // normal API endpoint
 	Mutex       sync.Mutex
 }
 
@@ -71,11 +77,12 @@ func (c *VCDClient) vcdauthorize(user, pass, org string) error {
 		org = os.Getenv("VCLOUD_ORG")
 	}
 
+	/* GETTING TOKEN FOR ADMINISTRATIVE PURPOSES */
 	// No point in checking for errors here
 	req := c.Client.NewRequest(map[string]string{}, "POST", c.sessionHREF, nil)
 
 	// Set Basic Authentication Header
-	req.SetBasicAuth(user+"@"+org, pass)
+	req.SetBasicAuth(user+"@System", pass)
 
 	// Add the Accept header for vCA
 	req.Header.Add("Accept", "application/*+xml;version=5.5")
@@ -86,9 +93,33 @@ func (c *VCDClient) vcdauthorize(user, pass, org string) error {
 	}
 	defer resp.Body.Close()
 
+
 	// Store the authentication header
 	c.Client.VCDToken = resp.Header.Get("x-vcloud-authorization")
 	c.Client.VCDAuthHeader = "x-vcloud-authorization"
+
+	//gets HREF for normal api purposes
+	s := c.sessionHREF
+	sArr := strings.Split(s.Path, "/session")
+	s.Path = sArr[0]
+	c.HREF = s
+
+	/* GETTING SPECIFIC ORG AND VDC SO THAT IT DOESN'T BREAK EXISTING CODE, MAKES ANOTHER REQUEST TO THE ORG SO THAT IT CAN STORE
+	ORG HREF and VDCHREF. THIS MIGHT BE REMOVED IN THE FUTURE IF WE DON'T HAVE THE USER CONNECT TO A SPECIFIC ORG BUT FOR RIGHT NOW
+	IT NEEDS TO BE THERE. IF WE DONT DO THIS WE HAVE TO CHANGE THE API CODE FOR A LOT OF OTHER THINGS*/
+	req = c.Client.NewRequest(map[string]string{}, "POST", c.sessionHREF, nil)
+
+	// Set Basic Authentication Header
+	req.SetBasicAuth(user+"@"+org, pass)
+
+	// Add the Accept header for vCA
+	req.Header.Add("Accept", "application/*+xml;version=5.5")
+
+	resp, err = checkResp(c.Client.Http.Do(req))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
 
 	session := new(session)
 	err = decodeBody(resp, session)
@@ -135,8 +166,124 @@ func (c *VCDClient) vcdauthorize(user, pass, org string) error {
 	if !session_found {
 		return fmt.Errorf("couldn't find a logout HREF in current session")
 	}
+
 	return nil
 }
+
+//update organization
+func (c *VCDClient) UpdateOrg(vcomp *types.OrgParams, orgId string) (Task, error) {
+	output, _ := xml.MarshalIndent(vcomp, "  ", "    ")
+
+	s := c.HREF
+	s.Path += "/admin/org/" + orgId
+
+	b := bytes.NewBufferString(xml.Header + string(output))
+
+	req := c.Client.NewRequest(map[string]string{}, "PUT", s, b)
+
+	req.Header.Add("Content-Type", "application/vnd.vmware.admin.organization+xml")
+
+	resp, err := checkResp(c.Client.Http.Do(req))
+	if err != nil {
+		return Task{} , fmt.Errorf("error instantiating a new Org: %s", err)
+	}
+
+	task := NewTask(&c.Client)
+
+	if err = decodeBody(resp, task.Task); err != nil {
+		return Task{}, fmt.Errorf("error decoding task response: %s", err)
+	}
+
+	return *task, nil
+}
+
+//gets an organization given an org_id
+func (c *VCDClient) GetOrg(orgId string) (bool, Org, error) {
+	s := c.HREF
+	s.Path += "/org/" + orgId
+
+	req := c.Client.NewRequest(map[string]string{}, "GET", s, nil)
+
+	req.Header.Add("Content-Type", "application/vnd.vmware.admin.organization+xml")
+
+	resp , err := checkResp(c.Client.Http.Do(req))
+	if err != nil {
+		return false, Org{}, fmt.Errorf("error getting Org %s: %s", orgId, err)
+	}
+
+	org := NewOrg(&c.Client)
+
+	if err = decodeBody(resp, org.Org); err != nil {
+		return false, Org{}, fmt.Errorf("error decoding org response: %s", err)
+	}
+
+
+	return true, *org, nil
+}
+
+//Creates an Organization based on settings, network, and org name
+func (c *VCDClient) CreateOrg(org string, fullOrgName string, settings types.OrgSettings, isEnabled bool) (Task, string, error) {
+	vcomp := &types.OrgParams{
+		Xmlns:       "http://www.vmware.com/vcloud/v1.5",
+		Name: org,
+		IsEnabled: isEnabled,
+		FullName: fullOrgName,
+		OrgSettings: &settings,
+
+	}
+
+
+	output, _ := xml.MarshalIndent(vcomp, "  ", "    ")
+
+	s := c.HREF
+	s.Path += "/admin/orgs"
+
+	b := bytes.NewBufferString(xml.Header + string(output))
+
+	req := c.Client.NewRequest(map[string]string{}, "POST", s, b)
+
+	req.Header.Add("Content-Type", "application/vnd.vmware.admin.organization+xml")
+
+	resp, err := checkResp(c.Client.Http.Do(req))
+	if err != nil {
+		return Task{}, "" , fmt.Errorf("error instantiating a new Org: %s", err)
+	}
+
+	task := NewTask(&c.Client)
+
+	if err = decodeBody(resp, task.Task); err != nil {
+		return Task{}, "", fmt.Errorf("error decoding task response: %s", err)
+	}
+
+	return *task, task.Task.ID , nil
+
+}
+
+//deletes an organization given an org_id
+func (c *VCDClient) DeleteOrg(orgId string) (bool, error) {
+	s := c.HREF
+	s.Path += "/admin/org/" + orgId + "/action/disable"
+
+	req := c.Client.NewRequest(map[string]string{}, "POST", s, nil)
+
+	_ , err := checkResp(c.Client.Http.Do(req))
+	if err != nil {
+		return false, fmt.Errorf("error getting Org %s: %s", orgId, err)
+	}
+
+	s = c.HREF
+	s.Path += "/admin/org/" + orgId
+
+	req = c.Client.NewRequest(map[string]string{}, "DELETE", s, nil)
+
+	_ , err = checkResp(c.Client.Http.Do(req))
+	if err != nil {
+		return false, fmt.Errorf("error getting Org %s: %s", orgId, err)
+	}
+
+	return true, nil
+}
+
 
 func (c *VCDClient) RetrieveOrg(vcdname string) (Org, error) {
 
@@ -218,7 +365,7 @@ func (c *VCDClient) Authenticate(username, password, org, vdcname string) (Org, 
 	vdc, err := c.Client.retrieveVDC()
 
 	if err != nil {
-		return Org{}, Vdc{}, fmt.Errorf("error retrieving the organization VDC")
+		return Org{}, Vdc{}, fmt.Errorf("error retrieving the organization VDC: %s : %s ", c.Client.VCDVDCHREF.Path, c.OrgHREF.Path)
 	}
 
 	return o, vdc, nil
