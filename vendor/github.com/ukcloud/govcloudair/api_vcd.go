@@ -259,6 +259,80 @@ func (c *VCDClient) CreateOrg(org string, fullOrgName string, settings types.Org
 
 }
 
+func (c *VCDClient) RemoveAllVDCs(orgId string) (Task, error){
+	var task *Task
+	_, org, _ := c.GetOrg(orgId)
+	count := 0
+	for _, a := range org.Org.Link {
+		if a.Type == "application/vnd.vmware.vcloud.vdc+xml" && a.Rel == "down" {
+			u, err := url.Parse(a.HREF)
+			if err != nil {
+				return Task{} , err
+			}
+				
+			req := c.Client.NewRequest(map[string]string{}, "GET", *u , nil)
+
+			resp, err := checkResp(c.Client.Http.Do(req))
+			if err != nil {
+				return Task{}, fmt.Errorf("error retreiving vdc: %s", err)
+			}
+
+			vdc := NewVdc(&c.Client)
+
+			if err = decodeBody(resp, vdc.Vdc); err != nil {
+				return Task{}, fmt.Errorf("error decoding vdc response: %s", err)
+			}
+
+			s := c.HREF
+			s.Path += "/admin/vdc/" + vdc.Vdc.ID[15:]
+
+			copyPath := s.Path
+
+			s.Path += "/action/disable"
+
+
+			req = c.Client.NewRequest(map[string]string{}, "POST", s, nil)
+
+			_ , err = checkResp(c.Client.Http.Do(req))
+
+			if err != nil {
+				return Task{}, fmt.Errorf("error disabling vdc: %s", err)
+			}
+
+			s.Path = copyPath
+
+			req = c.Client.NewRequest(map[string]string{}, "DELETE", s, nil)	
+
+			resp , err = checkResp(c.Client.Http.Do(req))
+
+			if err != nil {
+				return Task{}, fmt.Errorf("error deleting vdc: %s", err)
+			}
+
+			task = NewTask(&c.Client)
+
+			if err = decodeBody(resp, task.Task); err != nil {
+				return Task{}, fmt.Errorf("error decoding task response: %s", err)
+			}			
+
+			if task.Task.Status == "error" {
+				return *task, fmt.Errorf("vdc not properly destroyed")
+			}
+
+				//c.Client.VCDVDCHREF = *u
+			count = count + 1
+		}
+
+	}
+	if count == 0 {
+		return Task{
+			Task: &types.Task{},
+			}, nil
+	}
+
+	return *task, nil
+}
+
 //deletes an organization given an org_id
 func (c *VCDClient) DeleteOrg(orgId string) (bool, error) {
 	s := c.HREF
