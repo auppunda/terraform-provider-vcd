@@ -171,7 +171,15 @@ func (c *VCDClient) vcdauthorize(user, pass, org string) error {
 }
 
 //update organization
-func (c *VCDClient) UpdateOrg(vcomp *types.OrgParams, orgId string) (Task, error) {
+func (c *VCDClient) UpdateOrg(orgName string, fullName string, settings types.OrgSettings, orgId string, isEnabled bool) (Task, error) {
+	vcomp := &types.OrgParams{
+		Xmlns:       "http://www.vmware.com/vcloud/v1.5",
+		Name:        orgName,
+		IsEnabled:   isEnabled,
+		FullName:    fullName,
+		OrgSettings: &settings,
+	}
+
 	output, _ := xml.MarshalIndent(vcomp, "  ", "    ")
 
 	s := c.HREF
@@ -222,7 +230,7 @@ func (c *VCDClient) GetOrg(orgId string) (bool, Org, error) {
 }
 
 //Creates an Organization based on settings, network, and org name
-func (c *VCDClient) CreateOrg(org string, fullOrgName string, settings types.OrgSettings, isEnabled bool) (Task, string, error) {
+func (c *VCDClient) CreateOrg(org string, fullOrgName string, settings types.OrgSettings, isEnabled bool) (Task, error) {
 	vcomp := &types.OrgParams{
 		Xmlns:       "http://www.vmware.com/vcloud/v1.5",
 		Name: org,
@@ -246,91 +254,17 @@ func (c *VCDClient) CreateOrg(org string, fullOrgName string, settings types.Org
 
 	resp, err := checkResp(c.Client.Http.Do(req))
 	if err != nil {
-		return Task{}, "" , fmt.Errorf("error instantiating a new Org: %s", err)
+		return Task{}, fmt.Errorf("error instantiating a new Org: %s", err)
 	}
 
 	task := NewTask(&c.Client)
 
 	if err = decodeBody(resp, task.Task); err != nil {
-		return Task{}, "", fmt.Errorf("error decoding task response: %s", err)
-	}
-
-	return *task, task.Task.ID , nil
-
-}
-
-func (c *VCDClient) RemoveAllVDCs(orgId string) (Task, error){
-	var task *Task
-	_, org, _ := c.GetOrg(orgId)
-	count := 0
-	for _, a := range org.Org.Link {
-		if a.Type == "application/vnd.vmware.vcloud.vdc+xml" && a.Rel == "down" {
-			u, err := url.Parse(a.HREF)
-			if err != nil {
-				return Task{} , err
-			}
-				
-			req := c.Client.NewRequest(map[string]string{}, "GET", *u , nil)
-
-			resp, err := checkResp(c.Client.Http.Do(req))
-			if err != nil {
-				return Task{}, fmt.Errorf("error retreiving vdc: %s", err)
-			}
-
-			vdc := NewVdc(&c.Client)
-
-			if err = decodeBody(resp, vdc.Vdc); err != nil {
-				return Task{}, fmt.Errorf("error decoding vdc response: %s", err)
-			}
-
-			s := c.HREF
-			s.Path += "/admin/vdc/" + vdc.Vdc.ID[15:]
-
-			copyPath := s.Path
-
-			s.Path += "/action/disable"
-
-
-			req = c.Client.NewRequest(map[string]string{}, "POST", s, nil)
-
-			_ , err = checkResp(c.Client.Http.Do(req))
-
-			if err != nil {
-				return Task{}, fmt.Errorf("error disabling vdc: %s", err)
-			}
-
-			s.Path = copyPath
-
-			req = c.Client.NewRequest(map[string]string{}, "DELETE", s, nil)	
-
-			resp , err = checkResp(c.Client.Http.Do(req))
-
-			if err != nil {
-				return Task{}, fmt.Errorf("error deleting vdc: %s", err)
-			}
-
-			task = NewTask(&c.Client)
-
-			if err = decodeBody(resp, task.Task); err != nil {
-				return Task{}, fmt.Errorf("error decoding task response: %s", err)
-			}			
-
-			if task.Task.Status == "error" {
-				return *task, fmt.Errorf("vdc not properly destroyed")
-			}
-
-				//c.Client.VCDVDCHREF = *u
-			count = count + 1
-		}
-
-	}
-	if count == 0 {
-		return Task{
-			Task: &types.Task{},
-			}, nil
+		return Task{}, fmt.Errorf("error decoding task response: %s", err)
 	}
 
 	return *task, nil
+
 }
 
 //deletes an organization given an org_id
