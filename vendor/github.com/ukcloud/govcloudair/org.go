@@ -22,11 +22,97 @@ func NewOrg(c *Client) *Org {
 		Org: new(types.Org),
 		c:   c,
 	}
+}  
+
+//undeploys every vapp within an organization
+func (o *Org) UndeployAllVApps() (Task , error) {
+	var task Task
+	count := 0
+	for _, a := range o.Org.Link {
+		if a.Type == "application/vnd.vmware.vcloud.vdc+xml" && a.Rel == "down" {
+			u, err := url.Parse(a.HREF)
+			if err != nil {
+				return Task{} , err
+			}
+
+			vdc, err := o.getOrgVdc(u)
+
+			if err != nil {
+				return Task{}, fmt.Errorf("Error retrieving vapp with url: %s and with error %s", u.Path, err)
+			}
+
+			task, err = vdc.undeployAllVdcVApps()
+
+			if err != nil {
+				return Task{}, fmt.Errorf("Error deleting vapp: %s", err)
+			}
+			count = count + 1
+		}		
+	}
+	if count == 0 {
+		return Task{
+			Task: &types.Task{},
+			}, nil
+	}
+
+	return task, nil
 }
 
-func (o *Org) RemoveAllOrgVDCs(href url.URL) (Task, error){
+//deletes every vapp within an organization
+func (o *Org) RemoveAllVApps() (Task , error) {
+	var task Task
+	count := 0
+	for _, a := range o.Org.Link {
+		if a.Type == "application/vnd.vmware.vcloud.vdc+xml" && a.Rel == "down" {
+			u, err := url.Parse(a.HREF)
+			if err != nil {
+				return Task{} , err
+			}
+
+
+			vdc, err := o.getOrgVdc(u)
+
+			if err != nil {
+				return Task{}, fmt.Errorf("Error retrieving vapp with url: %s and with error %s", u.Path, err)
+			}
+
+			task, err = vdc.removeAllVdcVApps()
+
+			if err != nil {
+				return Task{}, fmt.Errorf("Error deleting vapp: %s", err)
+			}
+			count = count + 1
+		}		
+	}
+	if count == 0 {
+		return Task{
+			Task: &types.Task{},
+			}, nil
+	}
+
+	return task, nil
+}
+
+//gets a vdc within org with associated with a url
+func (o *Org) getOrgVdc(u *url.URL) (*Vdc, error) {		
+	req := o.c.NewRequest(map[string]string{}, "GET", *u , nil)
+
+	resp, err := checkResp(o.c.Http.Do(req))
+	if err != nil {
+		return &Vdc{}, fmt.Errorf("error retreiving vdc: %s", err)
+	}
+
+	vdc := NewVdc(o.c)
+
+	if err = decodeBody(resp, vdc.Vdc); err != nil {
+		return &Vdc{}, fmt.Errorf("error decoding vdc response: %s", err)
+	}
+	return vdc, nil
+}
+
+//removes all vdcs in a org
+func (o *Org) RemoveAllOrgVDCs() (Task, error){
 	var task *Task
-	//_, org, _ := c.GetOrg(orgId)
 	count := 0
 	for _, a := range o.Org.Link {
 		if a.Type == "application/vnd.vmware.vcloud.vdc+xml" && a.Rel == "down" {
@@ -35,21 +121,13 @@ func (o *Org) RemoveAllOrgVDCs(href url.URL) (Task, error){
 				return Task{} , err
 			}
 				
-			req := o.c.NewRequest(map[string]string{}, "GET", *u , nil)
-
-			resp, err := checkResp(o.c.Http.Do(req))
+			vdc, err := o.getOrgVdc(u)
 			if err != nil {
-				return Task{}, fmt.Errorf("error retreiving vdc: %s", err)
+				return Task{}, err
 			}
 
-			vdc := NewVdc(o.c)
-
-			if err = decodeBody(resp, vdc.Vdc); err != nil {
-				return Task{}, fmt.Errorf("error decoding vdc response: %s", err)
-			}
-
-			//vdc.DeleteAllVapps()
-			s := href
+			//split into different private functions
+			s := o.c.HREF
 			s.Path += "/admin/vdc/" + vdc.Vdc.ID[15:]
 
 			copyPath := s.Path
@@ -57,7 +135,7 @@ func (o *Org) RemoveAllOrgVDCs(href url.URL) (Task, error){
 			s.Path += "/action/disable"
 
 
-			req = o.c.NewRequest(map[string]string{}, "POST", s, nil)
+			req := o.c.NewRequest(map[string]string{}, "POST", s, nil)
 
 			_ , err = checkResp(o.c.Http.Do(req))
 
@@ -69,7 +147,7 @@ func (o *Org) RemoveAllOrgVDCs(href url.URL) (Task, error){
 
 			req = o.c.NewRequest(map[string]string{}, "DELETE", s, nil)	
 
-			resp , err = checkResp(o.c.Http.Do(req))
+			resp , err := checkResp(o.c.Http.Do(req))
 
 			if err != nil {
 				return Task{}, fmt.Errorf("error deleting vdc: %s", err)
@@ -85,7 +163,6 @@ func (o *Org) RemoveAllOrgVDCs(href url.URL) (Task, error){
 				return *task, fmt.Errorf("vdc not properly destroyed")
 			}
 
-				//c.Client.VCDVDCHREF = *u
 			count = count + 1
 		}
 
@@ -100,9 +177,8 @@ func (o *Org) RemoveAllOrgVDCs(href url.URL) (Task, error){
 }
 
 //removes All networks in the org
-func (o *Org) RemoveAllOrgNetworks(HREF url.URL) (Task, error){
+func (o *Org) RemoveAllOrgNetworks() (Task, error){
 	var task *Task
-	//_, org, _ := c.GetOrg(orgId)
 	count := 0
 	for _, a := range o.Org.Link {
 		if a.Type == "application/vnd.vmware.vcloud.orgNetwork+xml" && a.Rel == "down" {
@@ -111,7 +187,7 @@ func (o *Org) RemoveAllOrgNetworks(HREF url.URL) (Task, error){
 				return Task{} , err
 			}
 
-			s := HREF
+			s := o.c.HREF
 			s.Path += "/admin/network/" + strings.Split(u.Path, "/network/")[1] //gets id
 
 			req := o.c.NewRequest(map[string]string{}, "DELETE", s, nil)	
@@ -132,7 +208,6 @@ func (o *Org) RemoveAllOrgNetworks(HREF url.URL) (Task, error){
 				return *task, fmt.Errorf("vdc not properly destroyed")
 			}
 
-				//c.Client.VCDVDCHREF = *u
 			count = count + 1
 		}
 

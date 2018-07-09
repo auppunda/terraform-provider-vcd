@@ -76,6 +76,100 @@ func (v *Vdc) Refresh() error {
 	return nil
 }
 
+func (v *Vdc) getVdcVApp (u *url.URL) (*VApp, error){
+	req := v.c.NewRequest(map[string]string{}, "GET", *u , nil)
+
+	resp, err := checkResp(v.c.Http.Do(req))
+	if err != nil {
+		return &VApp{}, fmt.Errorf("error retreiving VApp: %s", err)
+	}
+
+	vapp := NewVApp(v.c)
+
+	if err = decodeBody(resp, vapp.VApp); err != nil {
+		return &VApp{}, fmt.Errorf("error decoding VApp response: %s", err)
+	}
+	return vapp, nil
+}
+
+func (v *Vdc) undeployAllVdcVApps() (Task, error){
+	err := v.Refresh()
+	if err != nil {
+		return Task{}, fmt.Errorf("error refreshing vdc: %s", err)
+	}
+	var task Task
+	count := 0
+	for _, resents := range v.Vdc.ResourceEntities {
+		for _, resent := range resents.ResourceEntity {
+
+			if resent.Type == "application/vnd.vmware.vcloud.vApp+xml" {
+				u, err := url.Parse(resent.HREF)
+				if err != nil {
+					return Task{} , err
+				}
+
+				vapp, err := v.getVdcVApp(u)
+
+				if err != nil {
+					return Task{}, fmt.Errorf("Error retrieving vapp with url: %s and with error %s", u.Path, err)
+				}
+
+				task, err = vapp.Undeploy()
+				count = count + 1
+			}
+		}	
+	}
+
+	if count == 0 {
+		return Task{
+			Task: &types.Task{},
+			}, nil
+	}
+
+	return task, nil		
+}
+
+func (v *Vdc) removeAllVdcVApps() (Task, error){
+	err := v.Refresh()
+	if err != nil {
+		return Task{}, fmt.Errorf("error refreshing vdc: %s", err)
+	}
+
+	var task Task
+	count := 0
+	for _, resents := range v.Vdc.ResourceEntities {
+		for _, resent := range resents.ResourceEntity {
+
+			if resent.Type == "application/vnd.vmware.vcloud.vApp+xml" {
+				u, err := url.Parse(resent.HREF)
+				if err != nil {
+					return Task{} , err
+				}
+
+				vapp, err := v.getVdcVApp(u)
+
+				if err != nil {
+					return Task{}, fmt.Errorf("Error retrieving vapp with url: %s and with error %s", u.Path, err)
+				}
+
+				task, err = vapp.Delete()
+
+				if err != nil {
+					return Task{}, fmt.Errorf("Error deleting vapp: %s", err)
+				}
+				count = count + 1
+			}
+		}	
+	}
+	if count == 0 {
+		return Task{
+			Task: &types.Task{},
+			}, nil
+	}
+
+	return task, nil		
+}
+
 func (v *Vdc) FindVDCNetwork(network string) (OrgVDCNetwork, error) {
 
 	for _, an := range v.Vdc.AvailableNetworks {

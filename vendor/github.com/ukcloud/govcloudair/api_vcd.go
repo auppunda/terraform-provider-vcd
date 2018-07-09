@@ -22,7 +22,6 @@ type VCDClient struct {
 	Client      Client  // Client for the underlying VCD instance
 	sessionHREF url.URL // HREF for the session API
 	QueryHREF   url.URL // HREF for the query API
-	HREF 		url.URL // normal API endpoint
 	Mutex       sync.Mutex
 }
 
@@ -102,7 +101,7 @@ func (c *VCDClient) vcdauthorize(user, pass, org string) error {
 	s := c.sessionHREF
 	sArr := strings.Split(s.Path, "/session")
 	s.Path = sArr[0]
-	c.HREF = s
+	c.Client.HREF = s
 
 	/* GETTING SPECIFIC ORG AND VDC SO THAT IT DOESN'T BREAK EXISTING CODE, MAKES ANOTHER REQUEST TO THE ORG SO THAT IT CAN STORE
 	ORG HREF and VDCHREF. THIS MIGHT BE REMOVED IN THE FUTURE IF WE DON'T HAVE THE USER CONNECT TO A SPECIFIC ORG BUT FOR RIGHT NOW
@@ -182,7 +181,7 @@ func (c *VCDClient) UpdateOrg(orgName string, fullName string, settings types.Or
 
 	output, _ := xml.MarshalIndent(vcomp, "  ", "    ")
 
-	s := c.HREF
+	s := c.Client.HREF
 	s.Path += "/admin/org/" + orgId
 
 	b := bytes.NewBufferString(xml.Header + string(output))
@@ -207,7 +206,7 @@ func (c *VCDClient) UpdateOrg(orgName string, fullName string, settings types.Or
 
 //gets an organization given an org_id
 func (c *VCDClient) GetOrg(orgId string) (bool, Org, error) {
-	s := c.HREF
+	s := c.Client.HREF
 	s.Path += "/org/" + orgId
 
 	req := c.Client.NewRequest(map[string]string{}, "GET", s, nil)
@@ -243,7 +242,7 @@ func (c *VCDClient) CreateOrg(org string, fullOrgName string, settings types.Org
 
 	output, _ := xml.MarshalIndent(vcomp, "  ", "    ")
 
-	s := c.HREF
+	s := c.Client.HREF
 	s.Path += "/admin/orgs"
 
 	b := bytes.NewBufferString(xml.Header + string(output))
@@ -267,22 +266,30 @@ func (c *VCDClient) CreateOrg(org string, fullOrgName string, settings types.Org
 
 }
 
-//deletes an organization given an org_id
-func (c *VCDClient) DeleteOrg(orgId string) (bool, error) {
-	s := c.HREF
+//disables org
+func (c *VCDClient) DisableOrg(orgId string) (error) {
+	s := c.Client.HREF
 	s.Path += "/admin/org/" + orgId + "/action/disable"
 
 	req := c.Client.NewRequest(map[string]string{}, "POST", s, nil)
 
 	_ , err := checkResp(c.Client.Http.Do(req))
+	return err
+}
+
+//deletes an organization given an org_id
+func (c *VCDClient) DeleteOrg(orgId string) (bool, error) {
+	
+	err := c.DisableOrg(orgId)
+
 	if err != nil {
 		return false, fmt.Errorf("error getting Org %s: %s", orgId, err)
-	}
+	}	
 
-	s = c.HREF
+	s := c.Client.HREF
 	s.Path += "/admin/org/" + orgId
 
-	req = c.Client.NewRequest(map[string]string{}, "DELETE", s, nil)
+	req := c.Client.NewRequest(map[string]string{}, "DELETE", s, nil)
 
 	_ , err = checkResp(c.Client.Http.Do(req))
 
