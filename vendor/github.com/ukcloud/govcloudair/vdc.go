@@ -28,6 +28,7 @@ func NewVdc(c *Client) *Vdc {
 	}
 }
 
+
 func (c *Client) retrieveVDC() (Vdc, error) {
 
 	req := c.NewRequest(map[string]string{}, "GET", c.VCDVDCHREF, nil)
@@ -76,6 +77,7 @@ func (v *Vdc) Refresh() error {
 	return nil
 }
 
+//PRIVATE FUNCTION
 func (v *Vdc) getVdcVApp (u *url.URL) (*VApp, error){
 	req := v.c.NewRequest(map[string]string{}, "GET", *u , nil)
 
@@ -92,6 +94,7 @@ func (v *Vdc) getVdcVApp (u *url.URL) (*VApp, error){
 	return vapp, nil
 }
 
+//PRIVATE FUNCTION
 func (v *Vdc) undeployAllVdcVApps() (Task, error){
 	err := v.Refresh()
 	if err != nil {
@@ -120,14 +123,18 @@ func (v *Vdc) undeployAllVdcVApps() (Task, error){
 		}	
 	}
 
-	if count == 0 {
+	if count == 0 || task == (Task{}) || task.Task.Status == "error" {
 		return Task{
-			Task: &types.Task{},
+			Task: &types.Task{
+				Status : "finished",
+				},
 			}, nil
 	}
 
 	return task, nil		
 }
+
+////PRIVATE FUNCTION
 
 func (v *Vdc) removeAllVdcVApps() (Task, error){
 	err := v.Refresh()
@@ -157,13 +164,19 @@ func (v *Vdc) removeAllVdcVApps() (Task, error){
 				if err != nil {
 					return Task{}, fmt.Errorf("Error deleting vapp: %s", err)
 				}
+				err = task.WaitTaskCompletion()
+				if err != nil {
+					return Task{}, fmt.Errorf("Couldn't finish removing vapp %#v", err)
+				}
 				count = count + 1
 			}
 		}	
 	}
 	if count == 0 {
 		return Task{
-			Task: &types.Task{},
+			Task: &types.Task{
+				Status : "finished",
+				},
 			}, nil
 	}
 

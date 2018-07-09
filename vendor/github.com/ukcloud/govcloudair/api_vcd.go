@@ -278,26 +278,110 @@ func (c *VCDClient) DisableOrg(orgId string) (error) {
 }
 
 //deletes an organization given an org_id
-func (c *VCDClient) DeleteOrg(orgId string) (bool, error) {
+func (c *VCDClient) DeleteOrg(orgId string, force bool, recursive bool) (error) {
 	
+	if force && recursive {
+
+		_,org,_ := c.GetOrg(orgId)
+
+		//undeploys vapps
+		task, err := org.undeployAllVApps()
+
+		if err != nil {
+			return fmt.Errorf("Could not undeploy All vapps %#v", err)
+		}
+		if task.Task.Status != "finished" {
+			err = task.WaitTaskCompletion()
+		}
+
+		if err != nil {
+			return fmt.Errorf("Could not undeploy with error %#v", err)
+		}
+
+		
+		//removes vapps
+		task, err = org.removeAllVApps()
+
+		if err != nil {
+			return fmt.Errorf("Could not remove all vapps %#v", err)
+		}
+
+		if task.Task.Status != "finished" {
+			err = task.WaitTaskCompletion()
+		}
+
+		if err != nil {
+			return fmt.Errorf("Could not remove vapp with error %#v", err)
+		}
+
+		//removes catalogs
+		task, err = org.removeCatalogs()
+
+		if err != nil {
+			return fmt.Errorf("Could not remove all catalogs %#v", err)
+		}
+
+		if task.Task.Status != "finished" {
+			err = task.WaitTaskCompletion()
+		}
+
+		if err != nil {
+			return fmt.Errorf("Could not remove vapp with error %#v", err)
+		}
+
+
+		//removes networks
+		task, err = org.removeAllOrgNetworks() 
+		if err != nil {
+			return fmt.Errorf("Could not remove all networks %#v", err)
+		}
+
+		if task.Task.Status != "finished" {
+			err = task.WaitTaskCompletion()
+		}
+
+		if err != nil {
+			return fmt.Errorf("Could not remove networks with error %#v", err)
+		}
+
+
+		//removes org vdcs
+		task, err = org.removeAllOrgVDCs() 
+		if err != nil {
+			return fmt.Errorf("Could not remove all vdcs %#v", err)
+		}
+
+		if task.Task.Status != "finished" {
+			err = task.WaitTaskCompletion()
+		}
+
+		if err != nil {
+			return fmt.Errorf("Could not remove vdcs with error %#v", err)
+		}
+	}
+
+
 	err := c.DisableOrg(orgId)
 
 	if err != nil {
-		return false, fmt.Errorf("error getting Org %s: %s", orgId, err)
+		return fmt.Errorf("error disabling Org %s: %s", orgId, err)
 	}	
 
 	s := c.Client.HREF
 	s.Path += "/admin/org/" + orgId
 
-	req := c.Client.NewRequest(map[string]string{}, "DELETE", s, nil)
+	req := c.Client.NewRequest(map[string]string{
+				"force" : "true",
+				"recursive" : "true",
+		}, "DELETE", s, nil)
 
 	_ , err = checkResp(c.Client.Http.Do(req))
 
 	if err != nil {
-		return false, fmt.Errorf("error getting Org %s: %s", orgId, err)
+		return fmt.Errorf("error deleting Org %s: %s", orgId, err)
 	}
 
-	return true, nil
+	return nil
 }
 
 

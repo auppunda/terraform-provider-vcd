@@ -26,6 +26,7 @@ type Client struct {
 	Http          http.Client // HttpClient is the client to use. Default will be used if not provided.
 }
 
+
 // NewRequest creates a new HTTP request and applies necessary auth headers if
 // set.
 func (c *Client) NewRequest(params map[string]string, method string, u url.URL, body io.Reader) *http.Request {

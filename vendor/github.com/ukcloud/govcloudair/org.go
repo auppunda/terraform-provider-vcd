@@ -24,8 +24,9 @@ func NewOrg(c *Client) *Org {
 	}
 }  
 
+//PRIVATE FUNCTION
 //undeploys every vapp within an organization
-func (o *Org) UndeployAllVApps() (Task , error) {
+func (o *Org) undeployAllVApps() (Task , error) {
 	var task Task
 	count := 0
 	for _, a := range o.Org.Link {
@@ -51,15 +52,18 @@ func (o *Org) UndeployAllVApps() (Task , error) {
 	}
 	if count == 0 {
 		return Task{
-			Task: &types.Task{},
+			Task: &types.Task{
+				Status : "finished",
+				},
 			}, nil
 	}
 
 	return task, nil
 }
 
+//PRIVATE FUNCTION
 //deletes every vapp within an organization
-func (o *Org) RemoveAllVApps() (Task , error) {
+func (o *Org) removeAllVApps() (Task , error) {
 	var task Task
 	count := 0
 	for _, a := range o.Org.Link {
@@ -86,13 +90,16 @@ func (o *Org) RemoveAllVApps() (Task , error) {
 	}
 	if count == 0 {
 		return Task{
-			Task: &types.Task{},
+			Task: &types.Task{
+				Status : "finished",
+				},
 			}, nil
 	}
 
 	return task, nil
 }
 
+//PRIVATE FUNCTION
 //gets a vdc within org with associated with a url
 func (o *Org) getOrgVdc(u *url.URL) (*Vdc, error) {		
 	req := o.c.NewRequest(map[string]string{}, "GET", *u , nil)
@@ -110,8 +117,9 @@ func (o *Org) getOrgVdc(u *url.URL) (*Vdc, error) {
 	return vdc, nil
 }
 
+//PRIVATE FUNCTION
 //removes all vdcs in a org
-func (o *Org) RemoveAllOrgVDCs() (Task, error){
+func (o *Org) removeAllOrgVDCs() (Task, error){
 	var task *Task
 	count := 0
 	for _, a := range o.Org.Link {
@@ -145,7 +153,10 @@ func (o *Org) RemoveAllOrgVDCs() (Task, error){
 
 			s.Path = copyPath
 
-			req = o.c.NewRequest(map[string]string{}, "DELETE", s, nil)	
+			req = o.c.NewRequest(map[string]string{
+				"recursive" : "true",
+				"force" : "true",
+				}, "DELETE", s, nil)	
 
 			resp , err := checkResp(o.c.Http.Do(req))
 
@@ -162,22 +173,29 @@ func (o *Org) RemoveAllOrgVDCs() (Task, error){
 			if task.Task.Status == "error" {
 				return *task, fmt.Errorf("vdc not properly destroyed")
 			}
+			err = task.WaitTaskCompletion()
 
+			if err != nil {
+					return Task{}, fmt.Errorf("Couldn't finish removing vdc %#v", err)
+			}
 			count = count + 1
 		}
 
 	}
 	if count == 0 {
 		return Task{
-			Task: &types.Task{},
+			Task: &types.Task{
+				Status : "finished",
+				},
 			}, nil
 	}
 
 	return *task, nil
 }
 
+//PRIVATE FUNCTION
 //removes All networks in the org
-func (o *Org) RemoveAllOrgNetworks() (Task, error){
+func (o *Org) removeAllOrgNetworks() (Task, error){
 	var task *Task
 	count := 0
 	for _, a := range o.Org.Link {
@@ -205,21 +223,61 @@ func (o *Org) RemoveAllOrgNetworks() (Task, error){
 			}			
 
 			if task.Task.Status == "error" {
-				return *task, fmt.Errorf("vdc not properly destroyed")
+				return *task, fmt.Errorf("network not properly destroyed")
 			}
-
+			err = task.WaitTaskCompletion()
+			if err != nil {
+					return Task{}, fmt.Errorf("Couldn't finish removing network %#v", err)
+			}
 			count = count + 1
 		}
 
 	}
 	if count == 0 {
 		return Task{
-			Task: &types.Task{},
+			Task: &types.Task{
+				Status : "finished",
+				},
 			}, nil
 	}
 
 	return *task, nil
 }
+
+func (o *Org) removeCatalogs() (Task, error) {
+	for _, a := range o.Org.Link {
+		if a.Type == "application/vnd.vmware.vcloud.catalog+xml" && a.Rel == "down" {
+			u, err := url.Parse(a.HREF)
+			if err != nil {
+				return Task{} , err
+			}
+
+			s := o.c.HREF
+			s.Path += "/admin/catalog/" + strings.Split(u.Path, "/catalog/")[1] //gets id
+
+			req := o.c.NewRequest(map[string]string{
+				"force" : "true",
+				"recursive" : "true",
+				}, "DELETE", s, nil)	
+
+			_, err = checkResp(o.c.Http.Do(req))
+
+			if err != nil {
+				return Task{}, fmt.Errorf("error deleting catalog: %s, %s", err, u.Path)
+			}
+
+		}
+
+	}
+	
+	return Task{
+		Task: &types.Task{
+			Status : "finished",
+			},
+		}, nil
+	
+}
+
 func (o *Org) FindCatalog(catalog string) (Catalog, error) {
 
 	for _, av := range o.Org.Link {
