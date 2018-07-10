@@ -5,11 +5,14 @@
 package govcloudair
 
 import (
+	"bytes"
+	"encoding/xml"
 	"fmt"
 	"net/url"
+	"strconv"
 
-	"strings"
 	types "github.com/ukcloud/govcloudair/types/v56"
+	"strings"
 )
 
 type Org struct {
@@ -22,87 +25,236 @@ func NewOrg(c *Client) *Org {
 		Org: new(types.Org),
 		c:   c,
 	}
-}  
+}
 
-//PRIVATE FUNCTION
+/*
+   Refetches the underlying org resource so that all resource URLs are
+   current. You must call this if you wish to ensure Org state is current,
+   e.g., after adding a VDC or catalog to the org. Returns an error if the
+   call to vCD fails.
+*/
+func (o *Org) Refresh() error {
+	if o.Org.HREF == "" {
+		return fmt.Errorf("cannot refresh, Object is empty")
+	}
+
+	u, _ := url.ParseRequestURI(o.Org.HREF)
+
+	req := o.c.NewRequest(map[string]string{}, "GET", *u, nil)
+
+	resp, err := checkResp(o.c.Http.Do(req))
+
+	if resp.StatusCode == 404 && err != nil {
+		return fmt.Errorf("Org deleted")
+	}
+
+	if err != nil {
+		return fmt.Errorf("error finding Org: %s", err)
+	}
+
+	// Empty struct before a new unmarshal, otherwise we end up with duplicate
+	// elements in slices.
+	unmarshalledOrg := &types.Org{}
+
+	if err = decodeBody(resp, unmarshalledOrg); err != nil {
+		return fmt.Errorf("error decoding org response: %s", err)
+	}
+
+	o.Org = unmarshalledOrg
+
+	// The request was successful
+	return nil
+}
+
+/*
+   Deletes the org, returning an error if the vCD call fails.
+   This call is idempotent and may be safely called on a non-existent org.
+*/
+func (o *Org) Delete(force bool, recursive bool) error {
+	err := o.Refresh()
+	if err != nil && err == (fmt.Errorf("Org deleted")) {
+		return nil
+	}
+
+	if force && recursive {
+
+		//undeploys vapps
+		err := o.undeployAllVApps()
+
+		if err != nil {
+			return fmt.Errorf("Could not undeploy with error %#v", err)
+		}
+
+		//removes vapps
+		err = o.removeAllVApps()
+
+		if err != nil {
+			return fmt.Errorf("Could not remove vapp with error %#v", err)
+		}
+
+		//removes catalogs
+		err = o.removeCatalogs()
+
+		if err != nil {
+			return fmt.Errorf("Could not remove all catalogs %#v", err)
+		}
+
+		//removes networks
+		err = o.removeAllOrgNetworks()
+		if err != nil {
+			return fmt.Errorf("Could not remove all networks %#v", err)
+		}
+
+		//removes org vdcs
+		err = o.removeAllOrgVDCs()
+		if err != nil {
+			return fmt.Errorf("Could not remove all vdcs %#v", err)
+		}
+
+	}
+
+	err = o.Disable()
+
+	if err != nil {
+		return fmt.Errorf("error disabling Org %s: %s", o.Org.ID, err)
+	}
+
+	s := o.c.HREF
+	s.Path += "/admin/org/" + o.Org.ID[15:]
+
+	req := o.c.NewRequest(map[string]string{
+		"force":     strconv.FormatBool(force),
+		"recursive": strconv.FormatBool(recursive),
+	}, "DELETE", s, nil)
+
+	resp, err := checkResp(o.c.Http.Do(req))
+
+	if resp.StatusCode == 404 /*resource not found, enables idepotency */ {
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("error deleting Org %s: %s", o.Org.ID, err)
+	}
+
+	return nil
+}
+
+// Disables the org. Returns an error if the call to vCD fails.
+func (o *Org) Disable() error {
+	s := o.c.HREF
+	s.Path += "/admin/org/" + o.Org.ID[15:] + "/action/disable"
+
+	req := o.c.NewRequest(map[string]string{}, "POST", s, nil)
+
+	_, err := checkResp(o.c.Http.Do(req))
+	return err
+}
+
+/*
+   Updates the Org definition from current org struct contents.
+   Any differences that may be legally applied will be updated.
+   Returns an error if the call to vCD fails.
+*/
+func (o *Org) Update(orgName string, fullName string, settings types.OrgSettings, isEnabled bool) (Task, error) {
+	vcomp := &types.OrgParams{
+		Xmlns:       "http://www.vmware.com/vcloud/v1.5",
+		Name:        orgName,
+		IsEnabled:   isEnabled,
+		FullName:    fullName,
+		OrgSettings: &settings,
+	}
+
+	output, _ := xml.MarshalIndent(vcomp, "  ", "    ")
+
+	s := o.c.HREF
+	s.Path += "/admin/org/" + o.Org.ID[15:]
+
+	b := bytes.NewBufferString(xml.Header + string(output))
+
+	req := o.c.NewRequest(map[string]string{}, "PUT", s, b)
+
+	req.Header.Add("Content-Type", "application/vnd.vmware.admin.organization+xml")
+
+	resp, err := checkResp(o.c.Http.Do(req))
+	if err != nil {
+		return Task{}, fmt.Errorf("error instantiating a new Org: %s", err)
+	}
+
+	task := NewTask(o.c)
+
+	if err = decodeBody(resp, task.Task); err != nil {
+		return Task{}, fmt.Errorf("error decoding task response: %s", err)
+	}
+
+	return *task, nil
+}
+
 //undeploys every vapp within an organization
-func (o *Org) undeployAllVApps() (Task , error) {
-	var task Task
-	count := 0
+func (o *Org) undeployAllVApps() error {
+	err := o.Refresh()
+	if err != nil {
+		return fmt.Errorf("Error refreshing org: %#v", err)
+	}
 	for _, a := range o.Org.Link {
 		if a.Type == "application/vnd.vmware.vcloud.vdc+xml" && a.Rel == "down" {
 			u, err := url.Parse(a.HREF)
 			if err != nil {
-				return Task{} , err
+				return err
 			}
 
 			vdc, err := o.getOrgVdc(u)
 
 			if err != nil {
-				return Task{}, fmt.Errorf("Error retrieving vapp with url: %s and with error %s", u.Path, err)
+				return fmt.Errorf("Error retrieving vapp with url: %s and with error %s", u.Path, err)
 			}
 
-			task, err = vdc.undeployAllVdcVApps()
+			err = vdc.undeployAllVdcVApps()
 
 			if err != nil {
-				return Task{}, fmt.Errorf("Error deleting vapp: %s", err)
+				return fmt.Errorf("Error deleting vapp: %s", err)
 			}
-			count = count + 1
-		}		
-	}
-	if count == 0 {
-		return Task{
-			Task: &types.Task{
-				Status : "finished",
-				},
-			}, nil
+		}
 	}
 
-	return task, nil
+	return nil
 }
 
-//PRIVATE FUNCTION
 //deletes every vapp within an organization
-func (o *Org) removeAllVApps() (Task , error) {
-	var task Task
-	count := 0
+func (o *Org) removeAllVApps() error {
+	err := o.Refresh()
+	if err != nil {
+		return fmt.Errorf("Error refreshing org: %#v", err)
+	}
+
 	for _, a := range o.Org.Link {
 		if a.Type == "application/vnd.vmware.vcloud.vdc+xml" && a.Rel == "down" {
 			u, err := url.Parse(a.HREF)
 			if err != nil {
-				return Task{} , err
+				return err
 			}
-
 
 			vdc, err := o.getOrgVdc(u)
 
 			if err != nil {
-				return Task{}, fmt.Errorf("Error retrieving vapp with url: %s and with error %s", u.Path, err)
+				return fmt.Errorf("Error retrieving vapp with url: %s and with error %s", u.Path, err)
 			}
 
-			task, err = vdc.removeAllVdcVApps()
+			err = vdc.removeAllVdcVApps()
 
 			if err != nil {
-				return Task{}, fmt.Errorf("Error deleting vapp: %s", err)
+				return fmt.Errorf("Error deleting vapp: %s", err)
 			}
-			count = count + 1
-		}		
-	}
-	if count == 0 {
-		return Task{
-			Task: &types.Task{
-				Status : "finished",
-				},
-			}, nil
+		}
 	}
 
-	return task, nil
+	return nil
 }
 
-//PRIVATE FUNCTION
 //gets a vdc within org with associated with a url
-func (o *Org) getOrgVdc(u *url.URL) (*Vdc, error) {		
-	req := o.c.NewRequest(map[string]string{}, "GET", *u , nil)
+func (o *Org) getOrgVdc(u *url.URL) (*Vdc, error) {
+
+	req := o.c.NewRequest(map[string]string{}, "GET", *u, nil)
 
 	resp, err := checkResp(o.c.Http.Do(req))
 	if err != nil {
@@ -117,21 +269,24 @@ func (o *Org) getOrgVdc(u *url.URL) (*Vdc, error) {
 	return vdc, nil
 }
 
-//PRIVATE FUNCTION
 //removes all vdcs in a org
-func (o *Org) removeAllOrgVDCs() (Task, error){
-	var task *Task
-	count := 0
+func (o *Org) removeAllOrgVDCs() error {
+
+	err := o.Refresh()
+	if err != nil {
+		return fmt.Errorf("Error refreshing org: %#v", err)
+	}
+
 	for _, a := range o.Org.Link {
 		if a.Type == "application/vnd.vmware.vcloud.vdc+xml" && a.Rel == "down" {
 			u, err := url.Parse(a.HREF)
 			if err != nil {
-				return Task{} , err
+				return err
 			}
-				
+
 			vdc, err := o.getOrgVdc(u)
 			if err != nil {
-				return Task{}, err
+				return err
 			}
 
 			//split into different private functions
@@ -142,143 +297,135 @@ func (o *Org) removeAllOrgVDCs() (Task, error){
 
 			s.Path += "/action/disable"
 
-
 			req := o.c.NewRequest(map[string]string{}, "POST", s, nil)
 
-			_ , err = checkResp(o.c.Http.Do(req))
+			_, err = checkResp(o.c.Http.Do(req))
 
 			if err != nil {
-				return Task{}, fmt.Errorf("error disabling vdc: %s", err)
+				return fmt.Errorf("error disabling vdc: %s", err)
 			}
 
 			s.Path = copyPath
 
 			req = o.c.NewRequest(map[string]string{
-				"recursive" : "true",
-				"force" : "true",
-				}, "DELETE", s, nil)	
+				"recursive": "true",
+				"force":     "true",
+			}, "DELETE", s, nil)
 
-			resp , err := checkResp(o.c.Http.Do(req))
+			resp, err := checkResp(o.c.Http.Do(req))
 
 			if err != nil {
-				return Task{}, fmt.Errorf("error deleting vdc: %s", err)
+				return fmt.Errorf("error deleting vdc: %s", err)
 			}
 
-			task = NewTask(o.c)
+			task := NewTask(o.c)
 
 			if err = decodeBody(resp, task.Task); err != nil {
-				return Task{}, fmt.Errorf("error decoding task response: %s", err)
-			}			
+				return fmt.Errorf("error decoding task response: %s", err)
+			}
 
 			if task.Task.Status == "error" {
-				return *task, fmt.Errorf("vdc not properly destroyed")
+				return fmt.Errorf("vdc not properly destroyed")
 			}
 			err = task.WaitTaskCompletion()
 
 			if err != nil {
-					return Task{}, fmt.Errorf("Couldn't finish removing vdc %#v", err)
+				return fmt.Errorf("Couldn't finish removing vdc %#v", err)
 			}
-			count = count + 1
 		}
 
 	}
-	if count == 0 {
-		return Task{
-			Task: &types.Task{
-				Status : "finished",
-				},
-			}, nil
-	}
 
-	return *task, nil
+	return nil
 }
 
-//PRIVATE FUNCTION
 //removes All networks in the org
-func (o *Org) removeAllOrgNetworks() (Task, error){
-	var task *Task
-	count := 0
+func (o *Org) removeAllOrgNetworks() error {
+
+	err := o.Refresh()
+	if err != nil {
+		return fmt.Errorf("Error refreshing org: %#v", err)
+	}
 	for _, a := range o.Org.Link {
 		if a.Type == "application/vnd.vmware.vcloud.orgNetwork+xml" && a.Rel == "down" {
 			u, err := url.Parse(a.HREF)
 			if err != nil {
-				return Task{} , err
+				return err
 			}
 
 			s := o.c.HREF
 			s.Path += "/admin/network/" + strings.Split(u.Path, "/network/")[1] //gets id
 
-			req := o.c.NewRequest(map[string]string{}, "DELETE", s, nil)	
+			req := o.c.NewRequest(map[string]string{}, "DELETE", s, nil)
 
-			resp , err := checkResp(o.c.Http.Do(req))
+			resp, err := checkResp(o.c.Http.Do(req))
 
 			if err != nil {
-				return Task{}, fmt.Errorf("error deleting newtork: %s, %s", err, u.Path)
+				return fmt.Errorf("error deleting newtork: %s, %s", err, u.Path)
 			}
 
-			task = NewTask(o.c)
+			task := NewTask(o.c)
 
 			if err = decodeBody(resp, task.Task); err != nil {
-				return Task{}, fmt.Errorf("error decoding task response: %s", err)
-			}			
+				return fmt.Errorf("error decoding task response: %s", err)
+			}
 
 			if task.Task.Status == "error" {
-				return *task, fmt.Errorf("network not properly destroyed")
+				return fmt.Errorf("network not properly destroyed")
 			}
 			err = task.WaitTaskCompletion()
 			if err != nil {
-					return Task{}, fmt.Errorf("Couldn't finish removing network %#v", err)
+				return fmt.Errorf("Couldn't finish removing network %#v", err)
 			}
-			count = count + 1
 		}
 
 	}
-	if count == 0 {
-		return Task{
-			Task: &types.Task{
-				Status : "finished",
-				},
-			}, nil
-	}
 
-	return *task, nil
+	return nil
 }
 
-func (o *Org) removeCatalogs() (Task, error) {
+//forced removal of all organization catalogs
+func (o *Org) removeCatalogs() error {
+	err := o.Refresh()
+	if err != nil {
+		return fmt.Errorf("Error refreshing org: %#v", err)
+	}
+
 	for _, a := range o.Org.Link {
 		if a.Type == "application/vnd.vmware.vcloud.catalog+xml" && a.Rel == "down" {
 			u, err := url.Parse(a.HREF)
 			if err != nil {
-				return Task{} , err
+				return err
 			}
 
 			s := o.c.HREF
 			s.Path += "/admin/catalog/" + strings.Split(u.Path, "/catalog/")[1] //gets id
 
 			req := o.c.NewRequest(map[string]string{
-				"force" : "true",
-				"recursive" : "true",
-				}, "DELETE", s, nil)	
+				"force":     "true",
+				"recursive": "true",
+			}, "DELETE", s, nil)
 
 			_, err = checkResp(o.c.Http.Do(req))
 
 			if err != nil {
-				return Task{}, fmt.Errorf("error deleting catalog: %s, %s", err, u.Path)
+				return fmt.Errorf("error deleting catalog: %s, %s", err, u.Path)
 			}
 
 		}
 
 	}
-	
-	return Task{
-		Task: &types.Task{
-			Status : "finished",
-			},
-		}, nil
-	
+
+	return nil
+
 }
 
 func (o *Org) FindCatalog(catalog string) (Catalog, error) {
+
+	err := o.Refresh()
+	if err != nil {
+		return Catalog{}, fmt.Errorf("Error refreshing org: %#v", err)
+	}
 
 	for _, av := range o.Org.Link {
 		if av.Rel == "down" && av.Type == "application/vnd.vmware.vcloud.catalog+xml" && av.Name == catalog {

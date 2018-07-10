@@ -28,7 +28,6 @@ func NewVdc(c *Client) *Vdc {
 	}
 }
 
-
 func (c *Client) retrieveVDC() (Vdc, error) {
 
 	req := c.NewRequest(map[string]string{}, "GET", c.VCDVDCHREF, nil)
@@ -77,9 +76,9 @@ func (v *Vdc) Refresh() error {
 	return nil
 }
 
-//PRIVATE FUNCTION
-func (v *Vdc) getVdcVApp (u *url.URL) (*VApp, error){
-	req := v.c.NewRequest(map[string]string{}, "GET", *u , nil)
+//gets a vapp with a url u
+func (v *Vdc) getVdcVApp(u *url.URL) (*VApp, error) {
+	req := v.c.NewRequest(map[string]string{}, "GET", *u, nil)
 
 	resp, err := checkResp(v.c.Http.Do(req))
 	if err != nil {
@@ -94,93 +93,78 @@ func (v *Vdc) getVdcVApp (u *url.URL) (*VApp, error){
 	return vapp, nil
 }
 
-//PRIVATE FUNCTION
-func (v *Vdc) undeployAllVdcVApps() (Task, error){
+//undeploys all vapps part of the vdc
+func (v *Vdc) undeployAllVdcVApps() error {
 	err := v.Refresh()
 	if err != nil {
-		return Task{}, fmt.Errorf("error refreshing vdc: %s", err)
+		return fmt.Errorf("error refreshing vdc: %s", err)
 	}
-	var task Task
-	count := 0
 	for _, resents := range v.Vdc.ResourceEntities {
 		for _, resent := range resents.ResourceEntity {
 
 			if resent.Type == "application/vnd.vmware.vcloud.vApp+xml" {
 				u, err := url.Parse(resent.HREF)
 				if err != nil {
-					return Task{} , err
+					return err
 				}
 
 				vapp, err := v.getVdcVApp(u)
 
 				if err != nil {
-					return Task{}, fmt.Errorf("Error retrieving vapp with url: %s and with error %s", u.Path, err)
+					return fmt.Errorf("Error retrieving vapp with url: %s and with error %s", u.Path, err)
 				}
 
-				task, err = vapp.Undeploy()
-				count = count + 1
+				task, err := vapp.Undeploy()
+
+				if task == (Task{}) {
+					continue
+				}
+
+				err = task.WaitTaskCompletion()
 			}
-		}	
+		}
 	}
 
-	if count == 0 || task == (Task{}) || task.Task.Status == "error" {
-		return Task{
-			Task: &types.Task{
-				Status : "finished",
-				},
-			}, nil
-	}
-
-	return task, nil		
+	return nil
 }
 
-////PRIVATE FUNCTION
-
-func (v *Vdc) removeAllVdcVApps() (Task, error){
+//removes all vapps within the vdc
+func (v *Vdc) removeAllVdcVApps() error {
 	err := v.Refresh()
 	if err != nil {
-		return Task{}, fmt.Errorf("error refreshing vdc: %s", err)
+		return fmt.Errorf("error refreshing vdc: %s", err)
 	}
 
-	var task Task
-	count := 0
 	for _, resents := range v.Vdc.ResourceEntities {
 		for _, resent := range resents.ResourceEntity {
 
 			if resent.Type == "application/vnd.vmware.vcloud.vApp+xml" {
 				u, err := url.Parse(resent.HREF)
 				if err != nil {
-					return Task{} , err
+					return err
 				}
 
 				vapp, err := v.getVdcVApp(u)
 
 				if err != nil {
-					return Task{}, fmt.Errorf("Error retrieving vapp with url: %s and with error %s", u.Path, err)
+					return fmt.Errorf("Error retrieving vapp with url: %s and with error %s", u.Path, err)
 				}
 
-				task, err = vapp.Delete()
+				task, err := vapp.Delete()
 
 				if err != nil {
-					return Task{}, fmt.Errorf("Error deleting vapp: %s", err)
+					return fmt.Errorf("Error deleting vapp: %s", err)
 				}
+
 				err = task.WaitTaskCompletion()
 				if err != nil {
-					return Task{}, fmt.Errorf("Couldn't finish removing vapp %#v", err)
+					return fmt.Errorf("Couldn't finish removing vapp %#v", err)
 				}
-				count = count + 1
 			}
-		}	
-	}
-	if count == 0 {
-		return Task{
-			Task: &types.Task{
-				Status : "finished",
-				},
-			}, nil
+		}
 	}
 
-	return task, nil		
+	return nil
 }
 
 func (v *Vdc) FindVDCNetwork(network string) (OrgVDCNetwork, error) {

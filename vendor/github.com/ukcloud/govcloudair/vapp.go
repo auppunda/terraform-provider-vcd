@@ -62,7 +62,6 @@ func (v *VApp) Refresh() error {
 
 func (v *VApp) AddVM(orgvdcnetwork OrgVDCNetwork, vapptemplate VAppTemplate, name string, accept_all_eulas bool) (Task, error) {
 
-
 	vcomp := &types.ReComposeVAppParams{
 		Ovf:         "http://schemas.dmtf.org/ovf/envelope/1",
 		Xsi:         "http://www.w3.org/2001/XMLSchema-instance",
@@ -115,8 +114,6 @@ func (v *VApp) AddVM(orgvdcnetwork OrgVDCNetwork, vapptemplate VAppTemplate, nam
 	if err != nil {
 		return Task{}, fmt.Errorf("error instantiating a new VM: %s", err)
 	}
-
-
 
 	task := NewTask(v.c)
 
@@ -452,6 +449,7 @@ func (v *VApp) Undeploy() (Task, error) {
 	req.Header.Add("Content-Type", "application/vnd.vmware.vcloud.undeployVAppParams+xml")
 
 	resp, err := checkResp(v.c.Http.Do(req))
+
 	if err != nil {
 		return Task{}, fmt.Errorf("error undeploy vApp: %s", err)
 	}
@@ -517,6 +515,7 @@ func (v *VApp) Delete() (Task, error) {
 	req := v.c.NewRequest(map[string]string{}, "DELETE", *s, nil)
 
 	resp, err := checkResp(v.c.Http.Do(req))
+
 	if err != nil {
 		return Task{}, fmt.Errorf("error deleting vApp: %s", err)
 	}

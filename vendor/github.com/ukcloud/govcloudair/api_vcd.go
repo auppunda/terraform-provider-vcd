@@ -1,16 +1,16 @@
 package govcloudair
 
 import (
+	"bytes"
 	"crypto/tls"
+	"encoding/xml"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
-	"encoding/xml"
-	"bytes"
-	"strings"
 
 	types "github.com/ukcloud/govcloudair/types/v56"
 )
@@ -92,7 +92,6 @@ func (c *VCDClient) vcdauthorize(user, pass, org string) error {
 	}
 	defer resp.Body.Close()
 
-
 	// Store the authentication header
 	c.Client.VCDToken = resp.Header.Get("x-vcloud-authorization")
 	c.Client.VCDAuthHeader = "x-vcloud-authorization"
@@ -103,9 +102,6 @@ func (c *VCDClient) vcdauthorize(user, pass, org string) error {
 	s.Path = sArr[0]
 	c.Client.HREF = s
 
-	/* GETTING SPECIFIC ORG AND VDC SO THAT IT DOESN'T BREAK EXISTING CODE, MAKES ANOTHER REQUEST TO THE ORG SO THAT IT CAN STORE
-	ORG HREF and VDCHREF. THIS MIGHT BE REMOVED IN THE FUTURE IF WE DON'T HAVE THE USER CONNECT TO A SPECIFIC ORG BUT FOR RIGHT NOW
-	IT NEEDS TO BE THERE. IF WE DONT DO THIS WE HAVE TO CHANGE THE API CODE FOR A LOT OF OTHER THINGS*/
 	req = c.Client.NewRequest(map[string]string{}, "POST", c.sessionHREF, nil)
 
 	// Set Basic Authentication Header
@@ -169,43 +165,8 @@ func (c *VCDClient) vcdauthorize(user, pass, org string) error {
 	return nil
 }
 
-//update organization
-func (c *VCDClient) UpdateOrg(orgName string, fullName string, settings types.OrgSettings, orgId string, isEnabled bool) (Task, error) {
-	vcomp := &types.OrgParams{
-		Xmlns:       "http://www.vmware.com/vcloud/v1.5",
-		Name:        orgName,
-		IsEnabled:   isEnabled,
-		FullName:    fullName,
-		OrgSettings: &settings,
-	}
-
-	output, _ := xml.MarshalIndent(vcomp, "  ", "    ")
-
-	s := c.Client.HREF
-	s.Path += "/admin/org/" + orgId
-
-	b := bytes.NewBufferString(xml.Header + string(output))
-
-	req := c.Client.NewRequest(map[string]string{}, "PUT", s, b)
-
-	req.Header.Add("Content-Type", "application/vnd.vmware.admin.organization+xml")
-
-	resp, err := checkResp(c.Client.Http.Do(req))
-	if err != nil {
-		return Task{} , fmt.Errorf("error instantiating a new Org: %s", err)
-	}
-
-	task := NewTask(&c.Client)
-
-	if err = decodeBody(resp, task.Task); err != nil {
-		return Task{}, fmt.Errorf("error decoding task response: %s", err)
-	}
-
-	return *task, nil
-}
-
-//gets an organization given an org_id
-func (c *VCDClient) GetOrg(orgId string) (bool, Org, error) {
+//Fetches an org using the Org ID, which is the UUID in the Org HREF.
+func (c *VCDClient) GetOrg(orgId string) (Org, error) {
 	s := c.Client.HREF
 	s.Path += "/org/" + orgId
 
@@ -213,32 +174,29 @@ func (c *VCDClient) GetOrg(orgId string) (bool, Org, error) {
 
 	req.Header.Add("Content-Type", "application/vnd.vmware.admin.organization+xml")
 
-	resp , err := checkResp(c.Client.Http.Do(req))
+	resp, err := checkResp(c.Client.Http.Do(req))
 	if err != nil {
-		return false, Org{}, fmt.Errorf("error getting Org %s: %s", orgId, err)
+		return Org{}, fmt.Errorf("error getting Org %s: %s", orgId, err)
 	}
 
 	org := NewOrg(&c.Client)
 
 	if err = decodeBody(resp, org.Org); err != nil {
-		return false, Org{}, fmt.Errorf("error decoding org response: %s", err)
+		return Org{}, fmt.Errorf("error decoding org response: %s", err)
 	}
 
-
-	return true, *org, nil
+	return *org, nil
 }
 
 //Creates an Organization based on settings, network, and org name
 func (c *VCDClient) CreateOrg(org string, fullOrgName string, settings types.OrgSettings, isEnabled bool) (Task, error) {
 	vcomp := &types.OrgParams{
 		Xmlns:       "http://www.vmware.com/vcloud/v1.5",
-		Name: org,
-		IsEnabled: isEnabled,
-		FullName: fullOrgName,
+		Name:        org,
+		IsEnabled:   isEnabled,
+		FullName:    fullOrgName,
 		OrgSettings: &settings,
-
 	}
-
 
 	output, _ := xml.MarshalIndent(vcomp, "  ", "    ")
 
@@ -266,125 +224,9 @@ func (c *VCDClient) CreateOrg(org string, fullOrgName string, settings types.Org
 
 }
 
-//disables org
-func (c *VCDClient) DisableOrg(orgId string) (error) {
-	s := c.Client.HREF
-	s.Path += "/admin/org/" + orgId + "/action/disable"
-
-	req := c.Client.NewRequest(map[string]string{}, "POST", s, nil)
-
-	_ , err := checkResp(c.Client.Http.Do(req))
-	return err
-}
-
-//deletes an organization given an org_id
-func (c *VCDClient) DeleteOrg(orgId string, force bool, recursive bool) (error) {
-	
-	if force && recursive {
-
-		_,org,_ := c.GetOrg(orgId)
-
-		//undeploys vapps
-		task, err := org.undeployAllVApps()
-
-		if err != nil {
-			return fmt.Errorf("Could not undeploy All vapps %#v", err)
-		}
-		if task.Task.Status != "finished" {
-			err = task.WaitTaskCompletion()
-		}
-
-		if err != nil {
-			return fmt.Errorf("Could not undeploy with error %#v", err)
-		}
-
-		
-		//removes vapps
-		task, err = org.removeAllVApps()
-
-		if err != nil {
-			return fmt.Errorf("Could not remove all vapps %#v", err)
-		}
-
-		if task.Task.Status != "finished" {
-			err = task.WaitTaskCompletion()
-		}
-
-		if err != nil {
-			return fmt.Errorf("Could not remove vapp with error %#v", err)
-		}
-
-		//removes catalogs
-		task, err = org.removeCatalogs()
-
-		if err != nil {
-			return fmt.Errorf("Could not remove all catalogs %#v", err)
-		}
-
-		if task.Task.Status != "finished" {
-			err = task.WaitTaskCompletion()
-		}
-
-		if err != nil {
-			return fmt.Errorf("Could not remove vapp with error %#v", err)
-		}
-
-
-		//removes networks
-		task, err = org.removeAllOrgNetworks() 
-		if err != nil {
-			return fmt.Errorf("Could not remove all networks %#v", err)
-		}
-
-		if task.Task.Status != "finished" {
-			err = task.WaitTaskCompletion()
-		}
-
-		if err != nil {
-			return fmt.Errorf("Could not remove networks with error %#v", err)
-		}
-
-
-		//removes org vdcs
-		task, err = org.removeAllOrgVDCs() 
-		if err != nil {
-			return fmt.Errorf("Could not remove all vdcs %#v", err)
-		}
-
-		if task.Task.Status != "finished" {
-			err = task.WaitTaskCompletion()
-		}
-
-		if err != nil {
-			return fmt.Errorf("Could not remove vdcs with error %#v", err)
-		}
-	}
-
-
-	err := c.DisableOrg(orgId)
-
-	if err != nil {
-		return fmt.Errorf("error disabling Org %s: %s", orgId, err)
-	}	
-
-	s := c.Client.HREF
-	s.Path += "/admin/org/" + orgId
-
-	req := c.Client.NewRequest(map[string]string{
-				"force" : "true",
-				"recursive" : "true",
-		}, "DELETE", s, nil)
-
-	_ , err = checkResp(c.Client.Http.Do(req))
-
-	if err != nil {
-		return fmt.Errorf("error deleting Org %s: %s", orgId, err)
-	}
-
-	return nil
-}
-
-
+/* Retrieves an org resource. The Org nam is provided by the vcdname
+   parameter. Returns an error if the vCD call fails.
+*/
 func (c *VCDClient) RetrieveOrg(vcdname string) (Org, error) {
 
 	req := c.Client.NewRequest(map[string]string{}, "GET", c.OrgHREF, nil)
