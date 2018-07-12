@@ -95,10 +95,10 @@ func (v *Vdc) getVdcVApp(u *url.URL) (*VApp, error) {
 
 //undeploys all vapps part of the vdc
 func (v *Vdc) undeployAllVdcVApps() error {
-	err := v.Refresh()
-	if err != nil {
-		return fmt.Errorf("error refreshing vdc: %s", err)
-	}
+	// err := v.Refresh()
+	// if err != nil {
+	// 	return fmt.Errorf("error refreshing vdc: %s", err)
+	// }
 	for _, resents := range v.Vdc.ResourceEntities {
 		for _, resent := range resents.ResourceEntity {
 
@@ -130,10 +130,10 @@ func (v *Vdc) undeployAllVdcVApps() error {
 
 //removes all vapps within the vdc
 func (v *Vdc) removeAllVdcVApps() error {
-	err := v.Refresh()
-	if err != nil {
-		return fmt.Errorf("error refreshing vdc: %s", err)
-	}
+	// err := v.Refresh()
+	// if err != nil {
+	// 	return fmt.Errorf("error refreshing vdc: %s", err)
+	// }
 
 	for _, resents := range v.Vdc.ResourceEntities {
 		for _, resent := range resents.ResourceEntity {

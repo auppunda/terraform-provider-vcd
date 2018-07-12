@@ -378,7 +378,26 @@ type Vdc struct {
 // Description: Represents the user view of an organization vDC.
 // Since: 0.9
 type VDCType struct {
-	vdc *Reference 		`xml:"Vdc,omitempty"`
+	Vdcs []*Reference 		`xml:"Vdc,omitempty"`
+}
+
+// NetworksType contains metadata about the VDC
+// Type: NetworksType
+// Namespace: http://www.vmware.com/vcloud/v1.5
+// Description: Represents the user view of an organization Network.
+// Since: 0.9
+type NetworksType struct {
+	Networks []*Reference 		`xml:"Network,omitempty"`
+}
+
+
+// CatalogsType contains metadata about the VDC
+// Type: CatalogsListType
+// Namespace: http://www.vmware.com/vcloud/v1.5
+// Description: Represents the user view of an organization Catalog.
+// Since: 0.9
+type CatalogsType struct {
+	Catalog []*Reference 		`xml:"CatalogReference,omitempty"`
 }
 
 // Task represents an asynchronous operation in vCloud Director.
@@ -525,7 +544,7 @@ type Org struct {
 // Namespace: http://www.vmware.com/vcloud/v1.5
 // Description: Represents the user view of a vCloud Director organization.
 // Since: 0.9
-type OrgParams struct {
+type AdminOrg struct {
 	XMLName xml.Name 						`xml:"AdminOrg"`
 	Xmlns   string   `xml:"xmlns,attr"`
 	HREF         string           			`xml:"href,attr,omitempty"`
@@ -538,7 +557,10 @@ type OrgParams struct {
 	IsEnabled    bool             			`xml:"IsEnabled,omitempty"`
 	Link         LinkList         			`xml:"Link,omitempty"`
 	Tasks        	*TasksInProgress 		`xml:"Tasks,omitempty"`
-	OrgSettings     *OrgSettings		`xml:"Settings,omitempty"`
+	OrgSettings     *OrgSettings			`xml:"Settings,omitempty"`
+	Vdcs 		 *VDCType 					`xml:"Vdcs,omitempty"`
+	Networks 	 *NetworksType  				`xml:"Networks,omitempty"`
+	Catalogs 	 *CatalogsType 				`xml:"Catalogs,omitemtpy"`
 }
 
 // OrgSettingsType represents the settings for a vCloud Director organization.

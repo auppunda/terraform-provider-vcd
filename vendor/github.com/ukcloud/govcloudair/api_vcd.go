@@ -120,7 +120,7 @@ func (c *VCDClient) vcdauthorize(user, pass, org string) error {
 	err = decodeBody(resp, session)
 
 	if err != nil {
-		fmt.Errorf("error decoding session response: %s", err)
+		return fmt.Errorf("error decoding session response: %s", err)
 	}
 
 	org_found := false
@@ -166,36 +166,39 @@ func (c *VCDClient) vcdauthorize(user, pass, org string) error {
 }
 
 //Fetches an org using the Org ID, which is the UUID in the Org HREF.
-func (c *VCDClient) GetOrg(orgId string) (Org, error) {
+func (c *VCDClient) GetAdminOrgById(orgId string) (AdminOrg, error) {
 	s := c.Client.HREF
-	s.Path += "/org/" + orgId
+	s.Path += "/admin/org/" + orgId
 
 	req := c.Client.NewRequest(map[string]string{}, "GET", s, nil)
 
-	req.Header.Add("Content-Type", "application/vnd.vmware.admin.organization+xml")
+	req.Header.Add("Content-Type", "application/vnd.vmware.vcloud.org+xml")
 
 	resp, err := checkResp(c.Client.Http.Do(req))
 	if err != nil {
-		return Org{}, fmt.Errorf("error getting Org %s: %s", orgId, err)
+		return AdminOrg{}, fmt.Errorf("error getting Org %s: %s", orgId, err)
 	}
 
-	org := NewOrg(&c.Client)
+	org := NewAdminOrg(&c.Client)
 
-	if err = decodeBody(resp, org.Org); err != nil {
-		return Org{}, fmt.Errorf("error decoding org response: %s", err)
+	if err = decodeBody(resp, org.AdminOrg); err != nil {
+		return AdminOrg{}, fmt.Errorf("error decoding org response: %s", err)
 	}
 
 	return *org, nil
 }
 
 //Creates an Organization based on settings, network, and org name
-func (c *VCDClient) CreateOrg(org string, fullOrgName string, settings types.OrgSettings, isEnabled bool) (Task, error) {
-	vcomp := &types.OrgParams{
+func (c *VCDClient) CreateOrg(org string, fullOrgName string, isEnabled bool, canPublishCatalogs bool, vmQuota int) (Task, error) {
+
+	settings := getOrgSettings(canPublishCatalogs, vmQuota)
+
+	vcomp := &types.AdminOrg{
 		Xmlns:       "http://www.vmware.com/vcloud/v1.5",
 		Name:        org,
 		IsEnabled:   isEnabled,
 		FullName:    fullOrgName,
-		OrgSettings: &settings,
+		OrgSettings: settings,
 	}
 
 	output, _ := xml.MarshalIndent(vcomp, "  ", "    ")
@@ -331,4 +334,24 @@ func (c *VCDClient) Disconnect() error {
 		return fmt.Errorf("error processing session delete for vCloud Director: %s", err)
 	}
 	return nil
+}
+
+func getOrgSettings(canPublishCatalogs bool, vmQuota int) *types.OrgSettings {
+	var settings *types.OrgSettings
+	if vmQuota != -1 {
+		settings = &types.OrgSettings{
+			General: &types.OrgGeneralSettings{
+				CanPublishCatalogs: canPublishCatalogs,
+				DeployedVMQuota:    vmQuota,
+				StoredVMQuota:      vmQuota,
+			},
+		}
+	} else {
+		settings = &types.OrgSettings{
+			General: &types.OrgGeneralSettings{
+				CanPublishCatalogs: canPublishCatalogs,
+			},
+		}
+	}
+	return settings
 }
