@@ -1,9 +1,9 @@
 package govcloudair
 
 import (
-	"bytes"
+	//"bytes"
 	"crypto/tls"
-	"encoding/xml"
+	//"encoding/xml"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -11,8 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	types "github.com/ukcloud/govcloudair/types/v56"
+	//types "github.com/ukcloud/govcloudair/types/v56"
 )
 
 type VCDClient struct {
@@ -22,6 +21,7 @@ type VCDClient struct {
 	Client      Client  // Client for the underlying VCD instance
 	sessionHREF url.URL // HREF for the session API
 	QueryHREF   url.URL // HREF for the query API
+	System      System  // System variable
 	Mutex       sync.Mutex
 }
 
@@ -62,7 +62,7 @@ func (c *VCDClient) vcdloginurl() error {
 	return nil
 }
 
-func (c *VCDClient) vcdauthorize(user, pass, org string) error {
+func (c *VCDClient) vcdauthorize(user, pass, org string, is_admin bool) error {
 
 	if user == "" {
 		user = os.Getenv("VCLOUD_USERNAME")
@@ -76,12 +76,26 @@ func (c *VCDClient) vcdauthorize(user, pass, org string) error {
 		org = os.Getenv("VCLOUD_ORG")
 	}
 
-	/* GETTING TOKEN FOR ADMINISTRATIVE PURPOSES */
-	// No point in checking for errors here
+	//gets HREF for normal api purposes
+	s := c.sessionHREF
+	sArr := strings.Split(s.Path, "/session")
+	s.Path = sArr[0]
+	c.Client.HREF = s
+
+	if is_admin {
+		s := NewSystemClient(&c.Client)
+		c.System = *s
+		err := c.System.SystemAuthorize(user, pass)
+
+		if err != nil {
+			return fmt.Errorf("Cannot establish admin connection with error : %v", err)
+		}
+
+	}
 	req := c.Client.NewRequest(map[string]string{}, "POST", c.sessionHREF, nil)
 
 	// Set Basic Authentication Header
-	req.SetBasicAuth(user+"@System", pass)
+	req.SetBasicAuth(user+"@"+org, pass)
 
 	// Add the Accept header for vCA
 	req.Header.Add("Accept", "application/*+xml;version=5.5")
@@ -92,29 +106,10 @@ func (c *VCDClient) vcdauthorize(user, pass, org string) error {
 	}
 	defer resp.Body.Close()
 
-	// Store the authentication header
-	c.Client.VCDToken = resp.Header.Get("x-vcloud-authorization")
-	c.Client.VCDAuthHeader = "x-vcloud-authorization"
-
-	//gets HREF for normal api purposes
-	s := c.sessionHREF
-	sArr := strings.Split(s.Path, "/session")
-	s.Path = sArr[0]
-	c.Client.HREF = s
-
-	req = c.Client.NewRequest(map[string]string{}, "POST", c.sessionHREF, nil)
-
-	// Set Basic Authentication Header
-	req.SetBasicAuth(user+"@"+org, pass)
-
-	// Add the Accept header for vCA
-	req.Header.Add("Accept", "application/*+xml;version=5.5")
-
-	resp, err = checkResp(c.Client.Http.Do(req))
-	if err != nil {
-		return err
+	if !is_admin {
+		c.Client.VCDToken = resp.Header.Get("x-vcloud-authorization")
+		c.Client.VCDAuthHeader = "x-vcloud-authorization"
 	}
-	defer resp.Body.Close()
 
 	session := new(session)
 	err = decodeBody(resp, session)
@@ -165,67 +160,67 @@ func (c *VCDClient) vcdauthorize(user, pass, org string) error {
 	return nil
 }
 
-//Fetches an org using the Org ID, which is the UUID in the Org HREF.
-func (c *VCDClient) GetAdminOrgById(orgId string) (AdminOrg, error) {
-	s := c.Client.HREF
-	s.Path += "/admin/org/" + orgId
+// //Fetches an org using the Org ID, which is the UUID in the Org HREF.
+// func (c *VCDClient) GetAdminOrgById(orgId string) (AdminOrg, error) {
+// 	s := c.Client.HREF
+// 	s.Path += "/admin/org/" + orgId
 
-	req := c.Client.NewRequest(map[string]string{}, "GET", s, nil)
+// 	req := c.Client.NewRequest(map[string]string{}, "GET", s, nil)
 
-	req.Header.Add("Content-Type", "application/vnd.vmware.vcloud.org+xml")
+// 	req.Header.Add("Content-Type", "application/vnd.vmware.vcloud.org+xml")
 
-	resp, err := checkResp(c.Client.Http.Do(req))
-	if err != nil {
-		return AdminOrg{}, fmt.Errorf("error getting Org %s: %s", orgId, err)
-	}
+// 	resp, err := checkResp(c.Client.Http.Do(req))
+// 	if err != nil {
+// 		return AdminOrg{}, fmt.Errorf("error getting Org %s: %s", orgId, err)
+// 	}
 
-	org := NewAdminOrg(&c.Client)
+// 	org := NewAdminOrg(&c.Client)
 
-	if err = decodeBody(resp, org.AdminOrg); err != nil {
-		return AdminOrg{}, fmt.Errorf("error decoding org response: %s", err)
-	}
+// 	if err = decodeBody(resp, org.AdminOrg); err != nil {
+// 		return AdminOrg{}, fmt.Errorf("error decoding org response: %s", err)
+// 	}
 
-	return *org, nil
-}
+// 	return *org, nil
+// }
 
-//Creates an Organization based on settings, network, and org name
-func (c *VCDClient) CreateOrg(org string, fullOrgName string, isEnabled bool, canPublishCatalogs bool, vmQuota int) (Task, error) {
+// //Creates an Organization based on settings, network, and org name
+// func (c *VCDClient) CreateOrg(org string, fullOrgName string, isEnabled bool, canPublishCatalogs bool, vmQuota int) (Task, error) {
 
-	settings := getOrgSettings(canPublishCatalogs, vmQuota)
+// 	settings := getOrgSettings(canPublishCatalogs, vmQuota)
 
-	vcomp := &types.AdminOrg{
-		Xmlns:       "http://www.vmware.com/vcloud/v1.5",
-		Name:        org,
-		IsEnabled:   isEnabled,
-		FullName:    fullOrgName,
-		OrgSettings: settings,
-	}
+// 	vcomp := &types.AdminOrg{
+// 		Xmlns:       "http://www.vmware.com/vcloud/v1.5",
+// 		Name:        org,
+// 		IsEnabled:   isEnabled,
+// 		FullName:    fullOrgName,
+// 		OrgSettings: settings,
+// 	}
 
-	output, _ := xml.MarshalIndent(vcomp, "  ", "    ")
+// 	output, _ := xml.MarshalIndent(vcomp, "  ", "    ")
 
-	s := c.Client.HREF
-	s.Path += "/admin/orgs"
+// 	s := c.Client.HREF
+// 	s.Path += "/admin/orgs"
 
-	b := bytes.NewBufferString(xml.Header + string(output))
+// 	b := bytes.NewBufferString(xml.Header + string(output))
 
-	req := c.Client.NewRequest(map[string]string{}, "POST", s, b)
+// 	req := c.Client.NewRequest(map[string]string{}, "POST", s, b)
 
-	req.Header.Add("Content-Type", "application/vnd.vmware.admin.organization+xml")
+// 	req.Header.Add("Content-Type", "application/vnd.vmware.admin.organization+xml")
 
-	resp, err := checkResp(c.Client.Http.Do(req))
-	if err != nil {
-		return Task{}, fmt.Errorf("error instantiating a new Org: %s", err)
-	}
+// 	resp, err := checkResp(c.Client.Http.Do(req))
+// 	if err != nil {
+// 		return Task{}, fmt.Errorf("error instantiating a new Org: %s", err)
+// 	}
 
-	task := NewTask(&c.Client)
+// 	task := NewTask(&c.Client)
 
-	if err = decodeBody(resp, task.Task); err != nil {
-		return Task{}, fmt.Errorf("error decoding task response: %s", err)
-	}
+// 	if err = decodeBody(resp, task.Task); err != nil {
+// 		return Task{}, fmt.Errorf("error decoding task response: %s", err)
+// 	}
 
-	return *task, nil
+// 	return *task, nil
 
-}
+// }
 
 /* Retrieves an org resource. The Org nam is provided by the vcdname
    parameter. Returns an error if the vCD call fails.
@@ -288,7 +283,7 @@ func NewVCDClient(vcdEndpoint url.URL, insecure bool) *VCDClient {
 }
 
 // Authenticate is an helper function that performs a login in vCloud Director.
-func (c *VCDClient) Authenticate(username, password, org, vdcname string) (Org, Vdc, error) {
+func (c *VCDClient) Authenticate(username, password, org, vdcname string, is_admin bool) (Org, Vdc, error) {
 
 	// LoginUrl
 	err := c.vcdloginurl()
@@ -296,7 +291,7 @@ func (c *VCDClient) Authenticate(username, password, org, vdcname string) (Org, 
 		return Org{}, Vdc{}, fmt.Errorf("error finding LoginUrl: %s", err)
 	}
 	// Authorize
-	err = c.vcdauthorize(username, password, org)
+	err = c.vcdauthorize(username, password, org, is_admin)
 	if err != nil {
 		return Org{}, Vdc{}, fmt.Errorf("error authorizing: %s", err)
 	}
@@ -334,24 +329,4 @@ func (c *VCDClient) Disconnect() error {
 		return fmt.Errorf("error processing session delete for vCloud Director: %s", err)
 	}
 	return nil
-}
-
-func getOrgSettings(canPublishCatalogs bool, vmQuota int) *types.OrgSettings {
-	var settings *types.OrgSettings
-	if vmQuota != -1 {
-		settings = &types.OrgSettings{
-			General: &types.OrgGeneralSettings{
-				CanPublishCatalogs: canPublishCatalogs,
-				DeployedVMQuota:    vmQuota,
-				StoredVMQuota:      vmQuota,
-			},
-		}
-	} else {
-		settings = &types.OrgSettings{
-			General: &types.OrgGeneralSettings{
-				CanPublishCatalogs: canPublishCatalogs,
-			},
-		}
-	}
-	return settings
 }

@@ -17,7 +17,6 @@ import (
 
 type AdminOrg struct {
 	AdminOrg *types.AdminOrg
-	c        *Client
 	Org
 }
 
@@ -29,7 +28,9 @@ type Org struct {
 func NewAdminOrg(c *Client) *AdminOrg {
 	return &AdminOrg{
 		AdminOrg: new(types.AdminOrg),
-		c:        c,
+		Org: Org{
+			c: c,
+		},
 	}
 }
 
