@@ -41,6 +41,8 @@ func NewOrg(c *Client) *Org {
 	}
 }
 
+
+
 //   Refetches the underlying org resource so that all resource URLs are
 //   current. You must call this if you wish to ensure Org state is current,
 //   e.g., after adding a VDC or catalog to the org. Returns an error if the

@@ -5,6 +5,7 @@
 package govcloudair
 
 import (
+ 	"net/url"
 	"bytes"
 	"encoding/xml"
 	"fmt"
@@ -30,10 +31,13 @@ func (v *Vdc) InstantiateVAppTemplate(template *types.InstantiateVAppTemplatePar
 	}
 	b := bytes.NewBufferString(xml.Header + string(output))
 
-	s := v.c.VCDVDCHREF
+	s, err := url.ParseRequestURI(v.Vdc.HREF)
+	if err != nil {
+		return fmt.Errorf("Error fetching vdcHref : %s", err)
+	}
 	s.Path += "/action/instantiateVAppTemplate"
 
-	req := v.c.NewRequest(map[string]string{}, "POST", s, b)
+	req := v.c.NewRequest(map[string]string{}, "POST", *s, b)
 	req.Header.Add("Content-Type", "application/vnd.vmware.vcloud.instantiateVAppTemplateParams+xml")
 
 	resp, err := checkResp(v.c.Http.Do(req))

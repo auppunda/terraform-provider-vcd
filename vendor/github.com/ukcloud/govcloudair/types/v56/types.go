@@ -538,6 +538,15 @@ type Org struct {
 	Tasks        *TasksInProgress           `xml:"Tasks,omitempty"`
 }
 
+// OrgList represents the a lists of Organizations
+// Type: OrgType
+// Namespace: http://www.vmware.com/vcloud/v1.5
+// Description: Represents the user view of a vCloud Director organization.
+// Since: 0.9
+type OrgList struct {
+	Link         LinkList         			`xml:"Link,omitempty"`
+	Org 		 []*Org 					`xml:"Org,omitempty"`
+}
 
 // Org represents the user view of a vCloud Director organization.
 // Type: AdminOrgType

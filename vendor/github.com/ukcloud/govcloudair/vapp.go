@@ -177,111 +177,111 @@ func (v *VApp) RemoveVM(vm VM) error {
 	return nil
 }
 
-func (v *VApp) ComposeVApp(orgvdcnetwork OrgVDCNetwork, vapptemplate VAppTemplate, storageprofileref types.Reference, name string, description string) (Task, error) {
+// func (v *VApp) ComposeVApp(orgvdcnetwork OrgVDCNetwork, vapptemplate VAppTemplate, storageprofileref types.Reference, name string, description string) (Task, error) {
 
-	if vapptemplate.VAppTemplate.Children == nil || orgvdcnetwork.OrgVDCNetwork == nil {
-		return Task{}, fmt.Errorf("can't compose a new vApp, objects passed are not valid")
-	}
+// 	if vapptemplate.VAppTemplate.Children == nil || orgvdcnetwork.OrgVDCNetwork == nil {
+// 		return Task{}, fmt.Errorf("can't compose a new vApp, objects passed are not valid")
+// 	}
 
-	// Build request XML
-	vcomp := &types.ComposeVAppParams{
-		Ovf:         "http://schemas.dmtf.org/ovf/envelope/1",
-		Xsi:         "http://www.w3.org/2001/XMLSchema-instance",
-		Xmlns:       "http://www.vmware.com/vcloud/v1.5",
-		Deploy:      false,
-		Name:        name,
-		PowerOn:     false,
-		Description: description,
-		InstantiationParams: &types.InstantiationParams{
-			NetworkConfigSection: &types.NetworkConfigSection{
-				Info: "Configuration parameters for logical networks",
-				NetworkConfig: &types.VAppNetworkConfiguration{
-					NetworkName: orgvdcnetwork.OrgVDCNetwork.Name,
-					Configuration: &types.NetworkConfiguration{
-						FenceMode: "bridged",
-						ParentNetwork: &types.Reference{
-							HREF: orgvdcnetwork.OrgVDCNetwork.HREF,
-							Name: orgvdcnetwork.OrgVDCNetwork.Name,
-							Type: orgvdcnetwork.OrgVDCNetwork.Type,
-						},
-					},
-				},
-			},
-		},
-		SourcedItem: &types.SourcedCompositionItemParam{
-			Source: &types.Reference{
-				HREF: vapptemplate.VAppTemplate.Children.VM[0].HREF,
-				Name: vapptemplate.VAppTemplate.Children.VM[0].Name,
-			},
-			InstantiationParams: &types.InstantiationParams{
-				NetworkConnectionSection: &types.NetworkConnectionSection{
-					Type: vapptemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.Type,
-					HREF: vapptemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.HREF,
-					Info: "Network config for sourced item",
-					PrimaryNetworkConnectionIndex: vapptemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.PrimaryNetworkConnectionIndex,
-					NetworkConnection: &types.NetworkConnection{
-						Network:                 orgvdcnetwork.OrgVDCNetwork.Name,
-						IsConnected:             true,
-						IPAddressAllocationMode: "POOL",
-					},
-				},
-			},
-			NetworkAssignment: &types.NetworkAssignment{
-				InnerNetwork:     orgvdcnetwork.OrgVDCNetwork.Name,
-				ContainerNetwork: orgvdcnetwork.OrgVDCNetwork.Name,
-			},
-		},
-	}
+// 	// Build request XML
+// 	vcomp := &types.ComposeVAppParams{
+// 		Ovf:         "http://schemas.dmtf.org/ovf/envelope/1",
+// 		Xsi:         "http://www.w3.org/2001/XMLSchema-instance",
+// 		Xmlns:       "http://www.vmware.com/vcloud/v1.5",
+// 		Deploy:      false,
+// 		Name:        name,
+// 		PowerOn:     false,
+// 		Description: description,
+// 		InstantiationParams: &types.InstantiationParams{
+// 			NetworkConfigSection: &types.NetworkConfigSection{
+// 				Info: "Configuration parameters for logical networks",
+// 				NetworkConfig: &types.VAppNetworkConfiguration{
+// 					NetworkName: orgvdcnetwork.OrgVDCNetwork.Name,
+// 					Configuration: &types.NetworkConfiguration{
+// 						FenceMode: "bridged",
+// 						ParentNetwork: &types.Reference{
+// 							HREF: orgvdcnetwork.OrgVDCNetwork.HREF,
+// 							Name: orgvdcnetwork.OrgVDCNetwork.Name,
+// 							Type: orgvdcnetwork.OrgVDCNetwork.Type,
+// 						},
+// 					},
+// 				},
+// 			},
+// 		},
+// 		SourcedItem: &types.SourcedCompositionItemParam{
+// 			Source: &types.Reference{
+// 				HREF: vapptemplate.VAppTemplate.Children.VM[0].HREF,
+// 				Name: vapptemplate.VAppTemplate.Children.VM[0].Name,
+// 			},
+// 			InstantiationParams: &types.InstantiationParams{
+// 				NetworkConnectionSection: &types.NetworkConnectionSection{
+// 					Type: vapptemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.Type,
+// 					HREF: vapptemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.HREF,
+// 					Info: "Network config for sourced item",
+// 					PrimaryNetworkConnectionIndex: vapptemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.PrimaryNetworkConnectionIndex,
+// 					NetworkConnection: &types.NetworkConnection{
+// 						Network:                 orgvdcnetwork.OrgVDCNetwork.Name,
+// 						IsConnected:             true,
+// 						IPAddressAllocationMode: "POOL",
+// 					},
+// 				},
+// 			},
+// 			NetworkAssignment: &types.NetworkAssignment{
+// 				InnerNetwork:     orgvdcnetwork.OrgVDCNetwork.Name,
+// 				ContainerNetwork: orgvdcnetwork.OrgVDCNetwork.Name,
+// 			},
+// 		},
+// 	}
 
-	if storageprofileref.HREF != "" {
-		vcomp.SourcedItem.StorageProfile = &storageprofileref
-	}
+// 	if storageprofileref.HREF != "" {
+// 		vcomp.SourcedItem.StorageProfile = &storageprofileref
+// 	}
 
-	// ensure network connection index is valid, if not use primary index
-	if vapptemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.NetworkConnection != nil {
-		vcomp.SourcedItem.InstantiationParams.NetworkConnectionSection.NetworkConnection.NetworkConnectionIndex = vapptemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.NetworkConnection.NetworkConnectionIndex
-	} else {
-		vcomp.SourcedItem.InstantiationParams.NetworkConnectionSection.NetworkConnection.NetworkConnectionIndex = vcomp.SourcedItem.InstantiationParams.NetworkConnectionSection.PrimaryNetworkConnectionIndex
-	}
+// 	// ensure network connection index is valid, if not use primary index
+// 	if vapptemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.NetworkConnection != nil {
+// 		vcomp.SourcedItem.InstantiationParams.NetworkConnectionSection.NetworkConnection.NetworkConnectionIndex = vapptemplate.VAppTemplate.Children.VM[0].NetworkConnectionSection.NetworkConnection.NetworkConnectionIndex
+// 	} else {
+// 		vcomp.SourcedItem.InstantiationParams.NetworkConnectionSection.NetworkConnection.NetworkConnectionIndex = vcomp.SourcedItem.InstantiationParams.NetworkConnectionSection.PrimaryNetworkConnectionIndex
+// 	}
 
-	output, err := xml.MarshalIndent(vcomp, "  ", "    ")
-	if err != nil {
-		return Task{}, fmt.Errorf("error marshaling vapp compose: %s", err)
-	}
+// 	output, err := xml.MarshalIndent(vcomp, "  ", "    ")
+// 	if err != nil {
+// 		return Task{}, fmt.Errorf("error marshaling vapp compose: %s", err)
+// 	}
 
-	debug := os.Getenv("GOVCLOUDAIR_DEBUG")
+// 	debug := os.Getenv("GOVCLOUDAIR_DEBUG")
 
-	if debug == "true" {
-		fmt.Printf("\n\nXML DEBUG: %s\n\n", string(output))
-	}
+// 	if debug == "true" {
+// 		fmt.Printf("\n\nXML DEBUG: %s\n\n", string(output))
+// 	}
 
-	log.Printf("\n\nXML DEBUG: %s\n\n", string(output))
+// 	log.Printf("\n\nXML DEBUG: %s\n\n", string(output))
 
-	b := bytes.NewBufferString(xml.Header + string(output))
+// 	b := bytes.NewBufferString(xml.Header + string(output))
 
-	s := v.c.VCDVDCHREF
-	s.Path += "/action/composeVApp"
+// 	s := v.c.VCDVDCHREF
+// 	s.Path += "/action/composeVApp"
 
-	req := v.c.NewRequest(map[string]string{}, "POST", s, b)
+// 	req := v.c.NewRequest(map[string]string{}, "POST", s, b)
 
-	req.Header.Add("Content-Type", "application/vnd.vmware.vcloud.composeVAppParams+xml")
+// 	req.Header.Add("Content-Type", "application/vnd.vmware.vcloud.composeVAppParams+xml")
 
-	resp, err := checkResp(v.c.Http.Do(req))
-	if err != nil {
-		return Task{}, fmt.Errorf("error instantiating a new vApp: %s", err)
-	}
+// 	resp, err := checkResp(v.c.Http.Do(req))
+// 	if err != nil {
+// 		return Task{}, fmt.Errorf("error instantiating a new vApp: %s", err)
+// 	}
 
-	if err = decodeBody(resp, v.VApp); err != nil {
-		return Task{}, fmt.Errorf("error decoding vApp response: %s", err)
-	}
+// 	if err = decodeBody(resp, v.VApp); err != nil {
+// 		return Task{}, fmt.Errorf("error decoding vApp response: %s", err)
+// 	}
 
-	task := NewTask(v.c)
-	task.Task = v.VApp.Tasks.Task[0]
+// 	task := NewTask(v.c)
+// 	task.Task = v.VApp.Tasks.Task[0]
 
-	// The request was successful
-	return *task, nil
+// 	// The request was successful
+// 	return *task, nil
 
-}
+// }
 
 func (v *VApp) PowerOn() (Task, error) {
 
