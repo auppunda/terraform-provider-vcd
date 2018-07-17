@@ -378,7 +378,7 @@ type Vdc struct {
 // Description: Represents the user view of an organization vDC.
 // Since: 0.9
 type VDCType struct {
-	Vdcs []*Reference 		`xml:"Vdc,omitempty"`
+	Vdcs []*Reference `xml:"Vdc,omitempty"`
 }
 
 // NetworksType contains metadata about the VDC
@@ -387,9 +387,8 @@ type VDCType struct {
 // Description: Represents the user view of an organization Network.
 // Since: 0.9
 type NetworksType struct {
-	Networks []*Reference 		`xml:"Network,omitempty"`
+	Networks []*Reference `xml:"Network,omitempty"`
 }
-
 
 // CatalogsType contains metadata about the VDC
 // Type: CatalogsListType
@@ -397,7 +396,7 @@ type NetworksType struct {
 // Description: Represents the user view of an organization Catalog.
 // Since: 0.9
 type CatalogsType struct {
-	Catalog []*Reference 		`xml:"CatalogReference,omitempty"`
+	Catalog []*Reference `xml:"CatalogReference,omitempty"`
 }
 
 // Task represents an asynchronous operation in vCloud Director.
@@ -526,16 +525,16 @@ type Link struct {
 // Description: Represents the user view of a vCloud Director organization.
 // Since: 0.9
 type Org struct {
-	HREF         string           			`xml:"href,attr,omitempty"`
-	Type         string           			`xml:"type,attr,omitempty"`
-	ID           string           			`xml:"id,attr,omitempty"`
-	OperationKey string           			`xml:"operationKey,attr,omitempty"`
-	Name         string           			`xml:"name,attr"`
-	Description  string           			`xml:"Description,omitempty"`
-	FullName     string           			`xml:"FullName"`
-	IsEnabled    bool             			`xml:"IsEnabled,omitempty"`
-	Link         LinkList         			`xml:"Link,omitempty"`
-	Tasks        *TasksInProgress           `xml:"Tasks,omitempty"`
+	HREF         string           `xml:"href,attr,omitempty"`
+	Type         string           `xml:"type,attr,omitempty"`
+	ID           string           `xml:"id,attr,omitempty"`
+	OperationKey string           `xml:"operationKey,attr,omitempty"`
+	Name         string           `xml:"name,attr"`
+	Description  string           `xml:"Description,omitempty"`
+	FullName     string           `xml:"FullName"`
+	IsEnabled    bool             `xml:"IsEnabled,omitempty"`
+	Link         LinkList         `xml:"Link,omitempty"`
+	Tasks        *TasksInProgress `xml:"Tasks,omitempty"`
 }
 
 // OrgList represents the a lists of Organizations
@@ -544,8 +543,8 @@ type Org struct {
 // Description: Represents the user view of a vCloud Director organization.
 // Since: 0.9
 type OrgList struct {
-	Link         LinkList         			`xml:"Link,omitempty"`
-	Org 		 []*Org 					`xml:"Org,omitempty"`
+	Link LinkList `xml:"Link,omitempty"`
+	Org  []*Org   `xml:"Org,omitempty"`
 }
 
 // Org represents the user view of a vCloud Director organization.
@@ -554,22 +553,22 @@ type OrgList struct {
 // Description: Represents the user view of a vCloud Director organization.
 // Since: 0.9
 type AdminOrg struct {
-	XMLName xml.Name 						`xml:"AdminOrg"`
-	Xmlns   string   `xml:"xmlns,attr"`
-	HREF         string           			`xml:"href,attr,omitempty"`
-	Type         string           			`xml:"type,attr,omitempty"`
-	ID           string           			`xml:"id,attr,omitempty"`
-	OperationKey string           			`xml:"operationKey,attr,omitempty"`
-	Name         string           			`xml:"name,attr"`
-	Description  string           			`xml:"Description,omitempty"`
-	FullName     string           			`xml:"FullName"`
-	IsEnabled    bool             			`xml:"IsEnabled,omitempty"`
-	Link         LinkList         			`xml:"Link,omitempty"`
-	Tasks        	*TasksInProgress 		`xml:"Tasks,omitempty"`
-	OrgSettings     *OrgSettings			`xml:"Settings,omitempty"`
-	Vdcs 		 *VDCType 					`xml:"Vdcs,omitempty"`
-	Networks 	 *NetworksType  				`xml:"Networks,omitempty"`
-	Catalogs 	 *CatalogsType 				`xml:"Catalogs,omitemtpy"`
+	XMLName      xml.Name         `xml:"AdminOrg"`
+	Xmlns        string           `xml:"xmlns,attr"`
+	HREF         string           `xml:"href,attr,omitempty"`
+	Type         string           `xml:"type,attr,omitempty"`
+	ID           string           `xml:"id,attr,omitempty"`
+	OperationKey string           `xml:"operationKey,attr,omitempty"`
+	Name         string           `xml:"name,attr"`
+	Description  string           `xml:"Description,omitempty"`
+	FullName     string           `xml:"FullName"`
+	IsEnabled    bool             `xml:"IsEnabled,omitempty"`
+	Link         LinkList         `xml:"Link,omitempty"`
+	Tasks        *TasksInProgress `xml:"Tasks,omitempty"`
+	OrgSettings  *OrgSettings     `xml:"Settings,omitempty"`
+	Vdcs         *VDCType         `xml:"Vdcs,omitempty"`
+	Networks     *NetworksType    `xml:"Networks,omitempty"`
+	Catalogs     *CatalogsType    `xml:"Catalogs,omitemtpy"`
 }
 
 // OrgSettingsType represents the settings for a vCloud Director organization.
@@ -579,15 +578,14 @@ type AdminOrg struct {
 // Since: 0.9
 type OrgSettings struct {
 	//attributes
-	XMLName       xml.Name              `xml:OrgSettings"`
-	HREF                  string `xml:"href,attr,omitempty"`                  // The URI of the entity.
-	Type                  string `xml:"type,attr,omitempty"`                  // The MIME type of the entity.
+	XMLName xml.Name `xml:OrgSettings"`
+	HREF    string   `xml:"href,attr,omitempty"` // The URI of the entity.
+	Type    string   `xml:"type,attr,omitempty"` // The MIME type of the entity.
 	//elements
-	Link        LinkList            `xml:"Link,omitempty"`                  // A reference to an entity or operation associated with this object.
-	General 	*OrgGeneralSettings	`xml:"OrgGeneralSettings,omitempty"`
-	VappLease	*VappLeaseSettings	`xml:"VAppLeaseSettings,omitempty"`
+	Link    LinkList            `xml:"Link,omitempty"` // A reference to an entity or operation associated with this object.
+	General *OrgGeneralSettings `xml:"OrgGeneralSettings,omitempty"`
+	//VappLease    *VAppLeaseSettings         `xml:"VAppLeaseSettings,omitempty"`
 	VAppTemplate *VAppTemplateLeaseSettings `xml:"VAppTemplateLeaseSettings,omitempty"`
-
 }
 
 // OrgGeneralSettingsType represents the general settings for a vCloud Director organization.
@@ -596,14 +594,15 @@ type OrgSettings struct {
 // Description: Represents the user view of a vCloud Director organization.
 // Since: 0.9
 type OrgGeneralSettings struct {
-	HREF                  string `xml:"href,attr,omitempty"`                  // The URI of the entity.
-	Type                  string `xml:"type,attr,omitempty"`                  // The MIME type of the entity.
-	Link        LinkList            `xml:"Link,omitempty"`                  // A reference to an entity or operation associated with this object.
+	HREF string   `xml:"href,attr,omitempty"` // The URI of the entity.
+	Type string   `xml:"type,attr,omitempty"` // The MIME type of the entity.
+	Link LinkList `xml:"Link,omitempty"`      // A reference to an entity or operation associated with this object.
 
-	CanPublishCatalogs bool 	`xml:"CanPublishCatalogs,omitempty"`
-	DeployedVMQuota	int 		`xml:"DeployedVMQuota,omitempty"`
-	StoredVMQuota	int 		`xml:"StoredVmQuota,omitempty"`
-
+	CanPublishCatalogs       bool `xml:"CanPublishCatalogs,omitempty"`
+	DeployedVMQuota          int  `xml:"DeployedVMQuota,omitempty"`
+	StoredVMQuota            int  `xml:"StoredVmQuota,omitempty"`
+	UseServerBootSequence    bool `xml:"UseServerBootSequence,omitempty"`
+	DelayAfterPowerOnSeconds int  `xml:"DelayAfterPowerOnSeconds,omitempty"`
 }
 
 // VappLeaseSettingsType represents the general settings for a vCloud Director organization.
@@ -611,26 +610,23 @@ type OrgGeneralSettings struct {
 // Namespace: http://www.vmware.com/vcloud/v1.5
 // Description: Represents the user view of a vCloud Director organization.
 // Since: 0.9
-type VappLeaseSettings struct {
-	HREF                  string `xml:"href,attr,omitempty"`                  // The URI of the entity.
-	Type                  string `xml:"type,attr,omitempty"`                  // The MIME type of the entity.
-	Link        LinkList            `xml:"Link,omitempty"`                  // A reference to an entity or operation associated with this object.
+type VAppLeaseSettings struct {
+	HREF string   `xml:"href,attr,omitempty"` // The URI of the entity.
+	Type string   `xml:"type,attr,omitempty"` // The MIME type of the entity.
+	Link LinkList `xml:"Link,omitempty"`      // A reference to an entity or operation associated with this object.
 
-	DeleteOnStorageLeaseExpiration bool 	`xml:"DeleteOnStorageLeaseExpiration,omitempty"`
-	DeploymentLeaseSeconds		   int 		`xml:"DeploymentLeaseSeconds,omitempty"`
-	StorageLeaseSeconds			   int 		`xml:"StorageLeaseSeconds,omitempty"`
-
-
+	//DeleteOnStorageLeaseExpiration bool `xml:"DeleteOnStorageLeaseExpiration,omitempty"`
+	//StorageLeaseSeconds            int  `xml:"StorageLeaseSeconds,omitempty"`
+	//DeploymentLeaseSeconds         int  `xml:"PowerOffOnRuntimeLeaseExpiration,omitempty"`
 }
 
 type VAppTemplateLeaseSettings struct {
-	HREF                  string `xml:"href,attr,omitempty"`                  // The URI of the entity.
-	Type                  string `xml:"type,attr,omitempty"`                  // The MIME type of the entity.
-	Link        LinkList            `xml:"Link,omitempty"`                  // A reference to an entity or operation associated with this object.
+	HREF string   `xml:"href,attr,omitempty"` // The URI of the entity.
+	Type string   `xml:"type,attr,omitempty"` // The MIME type of the entity.
+	Link LinkList `xml:"Link,omitempty"`      // A reference to an entity or operation associated with this object.
 
-	DeleteOnStorageLeaseExpiration bool 	`xml:"DeleteOnStorageLeaseExpiration,omitempty"`
-	StorageLeaseSeconds			   int 		`xml:"StorageLeaseSeconds,omitempty"`
-
+	DeleteOnStorageLeaseExpiration bool `xml:"DeleteOnStorageLeaseExpiration,omitempty"`
+	StorageLeaseSeconds            int  `xml:"StorageLeaseSeconds,omitempty"`
 }
 
 // AdminCatalog allows to chose which subnets a gateway can be a part of
@@ -639,20 +635,18 @@ type VAppTemplateLeaseSettings struct {
 // Description: Allows to chose which subnets a gateway can be part of
 // Since: 5.1
 type AdminCatalog struct {
+	HREF string `xml:"href,attr,omitempty"` // The URI of the entity.
+	Type string `xml:"type,attr,omitempty"` // The MIME type of the entity.
+	ID   string `xml:"id,attr,omitempty"`   // The entity identifier, expressed in URN format. The value of this attribute uniquely identifies the entity, persists for the life of the entity, and is never reused.
+	Name string `xml:"name,attr"`           // The name of the entity.
 
-	HREF                  string `xml:"href,attr,omitempty"`                  // The URI of the entity.
-	Type                  string `xml:"type,attr,omitempty"`                  // The MIME type of the entity.
-	ID                    string `xml:"id,attr,omitempty"`                    // The entity identifier, expressed in URN format. The value of this attribute uniquely identifies the entity, persists for the life of the entity, and is never reused.
-	Name                  string `xml:"name,attr"`                            // The name of the entity.
+	IsPublished bool   `xml:"IsPublished,omitempty"`
+	Description string `xml:"Description,omitempty"`
 
-
-	IsPublished 		  bool	 `xml:"IsPublished,omitempty"`
-	Description 		  string `xml:"Description,omitempty"`
-
-	Tasks       *TasksInProgress 	`xml:"Tasks,omitempty"`                 // A list of queued, running, or recently completed tasks associated with this entity.
-	items 		*CatalogItems 		`xml:"CatalogItems,omitempty"`
-	owner 		*Owner 				`xml:"Owner,omitempty"`
-	Link        LinkList            `xml:"Link,omitempty"`                  // A reference to an entity or operation associated with this object.
+	Tasks *TasksInProgress `xml:"Tasks,omitempty"` // A list of queued, running, or recently completed tasks associated with this entity.
+	items *CatalogItems    `xml:"CatalogItems,omitempty"`
+	owner *Owner           `xml:"Owner,omitempty"`
+	Link  LinkList         `xml:"Link,omitempty"` // A reference to an entity or operation associated with this object.
 
 }
 
@@ -1044,7 +1038,6 @@ type VAppTemplate struct {
 	// OVF Section needs to be added
 	// Section               Section              `xml:"Section,omitempty"`
 }
-
 
 // VM represents a virtual machine
 // Type: VmType

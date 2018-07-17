@@ -193,15 +193,14 @@ func (o *AdminOrg) Disable() error {
 //   Updates the Org definition from current org struct contents.
 //   Any differences that may be legally applied will be updated.
 //   Returns an error if the call to vCD fails.
-func (o *AdminOrg) Update(orgName string, fullName string, isEnabled bool, canPublishCatalogs bool, vmQuota int) (Task, error) {
-	settings := getOrgSettings(canPublishCatalogs, vmQuota)
+func (o *AdminOrg) Update() (Task, error) {
 
 	vcomp := &types.AdminOrg{
 		Xmlns:       "http://www.vmware.com/vcloud/v1.5",
-		Name:        orgName,
-		IsEnabled:   isEnabled,
-		FullName:    fullName,
-		OrgSettings: settings,
+		Name:        o.AdminOrg.Name,
+		IsEnabled:   o.AdminOrg.IsEnabled,
+		FullName:    o.AdminOrg.FullName,
+		OrgSettings: o.AdminOrg.OrgSettings,
 	}
 
 	output, _ := xml.MarshalIndent(vcomp, "  ", "    ")
@@ -217,7 +216,7 @@ func (o *AdminOrg) Update(orgName string, fullName string, isEnabled bool, canPu
 
 	resp, err := checkResp(o.c.Http.Do(req))
 	if err != nil {
-		return Task{}, fmt.Errorf("error instantiating a new Org: %s", err)
+		return Task{}, fmt.Errorf("error updating Org: %s", err)
 	}
 
 	task := NewTask(o.c)

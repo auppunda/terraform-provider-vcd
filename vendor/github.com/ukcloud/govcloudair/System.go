@@ -6,20 +6,21 @@ import (
 	"fmt"
 	types "github.com/ukcloud/govcloudair/types/v56"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
 //Creates an Organization based on settings, network, and org name
-func CreateOrg(c *VCDClient, name string, fullName string, isEnabled bool, canPublishCatalogs bool, vmQuota int) (Task, error) {
+func CreateOrg(c *VCDClient, name string, fullName string, isEnabled bool, settings map[string]string) (Task, error) {
 
-	settings := getOrgSettings(canPublishCatalogs, vmQuota)
+	orgSettings := getOrgSettings(settings)
 
 	vcomp := &types.AdminOrg{
 		Xmlns:       "http://www.vmware.com/vcloud/v1.5",
 		Name:        name,
 		IsEnabled:   isEnabled,
 		FullName:    fullName,
-		OrgSettings: settings,
+		OrgSettings: orgSettings,
 	}
 
 	output, _ := xml.MarshalIndent(vcomp, "  ", "    ")
@@ -194,22 +195,62 @@ func GetAdminOrgById(c *VCDClient, orgId string) (AdminOrg, error) {
 	return *org, nil
 }
 
-func getOrgSettings(canPublishCatalogs bool, vmQuota int) *types.OrgSettings {
-	var settings *types.OrgSettings
-	if vmQuota != -1 {
-		settings = &types.OrgSettings{
-			General: &types.OrgGeneralSettings{
-				CanPublishCatalogs: canPublishCatalogs,
-				DeployedVMQuota:    vmQuota,
-				StoredVMQuota:      vmQuota,
-			},
-		}
-	} else {
-		settings = &types.OrgSettings{
-			General: &types.OrgGeneralSettings{
-				CanPublishCatalogs: canPublishCatalogs,
-			},
-		}
+func getOrgSettings(settings map[string]string) *types.OrgSettings {
+	var orgSettings *types.OrgSettings
+
+	generalSettings := new(types.OrgGeneralSettings)
+
+	if val, ok := settings["CanPublishCatalogs"]; ok {
+		canPublishCatalogs, _ := strconv.ParseBool(val)
+		generalSettings.CanPublishCatalogs = canPublishCatalogs
 	}
-	return settings
+	if val, ok := settings["DeployedVMQuota"]; ok {
+		DeployedVMQuota, _ := strconv.Atoi(val)
+		generalSettings.DeployedVMQuota = DeployedVMQuota
+	}
+	if val, ok := settings["StoredVMQuota"]; ok {
+		StoredVMQuota, _ := strconv.Atoi(val)
+		generalSettings.StoredVMQuota = StoredVMQuota
+	}
+	if val, ok := settings["UseServerBootSequence"]; ok {
+		UseServerBootSequence, _ := strconv.ParseBool(val)
+		generalSettings.UseServerBootSequence = UseServerBootSequence
+	}
+	if val, ok := settings["DelayAfterPowerOnSeconds"]; ok {
+		DelayAfterPowerOnSeconds, _ := strconv.Atoi(val)
+		generalSettings.DelayAfterPowerOnSeconds = DelayAfterPowerOnSeconds
+	}
+
+	//vappLeaseSettings := &types.VAppLeaseSettings{}
+
+	// if val, ok := settings["DeleteOnStorageLeaseExpiration"]; ok {
+	// 	DeleteOnStorageLeaseExpiration, _ := strconv.ParseBool(val)
+	// 	vappLeaseSettings.DeleteOnStorageLeaseExpiration = DeleteOnStorageLeaseExpiration
+	// }
+	// if val, ok := settings["DeploymentLeaseSeconds"]; ok {
+	// 	DeploymentLeaseSeconds, _ := strconv.Atoi(val)
+	// 	vappLeaseSettings.DeploymentLeaseSeconds = DeploymentLeaseSeconds
+	// }
+	// if val, ok := settings["StorageLeaseSeconds"]; ok {
+	// 	StorageLeaseSeconds, _ := strconv.Atoi(val)
+	// 	vappLeaseSettings.StorageLeaseSeconds = StorageLeaseSeconds
+	// }
+
+	vappTemplateLeaseSettings := new(types.VAppTemplateLeaseSettings)
+	if val, ok := settings["DeleteOnStorageLeaseExpiration"]; ok {
+		DeleteOnStorageLeaseExpiration, _ := strconv.ParseBool(val)
+		vappTemplateLeaseSettings.DeleteOnStorageLeaseExpiration = DeleteOnStorageLeaseExpiration
+	}
+	if val, ok := settings["StorageLeaseSeconds"]; ok {
+		StorageLeaseSeconds, _ := strconv.Atoi(val)
+		vappTemplateLeaseSettings.StorageLeaseSeconds = StorageLeaseSeconds
+	}
+
+	orgSettings = &types.OrgSettings{
+		General:      generalSettings,
+		VAppTemplate: vappTemplateLeaseSettings,
+		//VappLease: 	  vappLeaseSettings,
+	}
+
+	return orgSettings
 }

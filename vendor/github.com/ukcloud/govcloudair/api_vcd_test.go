@@ -70,7 +70,7 @@ func TestCreateOrg(t *testing.T) {
 		t.Errorf("orgname : %s, vcdname : %s", g.Orgname, g.Vdcname)
 	}
 
-	task, err := CreateOrg(vcdClient, orgName, orgName, true, true, -1)
+	task, err := CreateOrg(vcdClient, orgName, orgName, true, map[string]string{"DeployedVMQuota": "13"})
 
 	if err != nil {
 		t.Errorf("Error while creating org: %v", err)

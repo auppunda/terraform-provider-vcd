@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	types "github.com/ukcloud/govcloudair/types/v56"
+	//types "github.com/ukcloud/govcloudair/types/v56"
 	"sync"
 	"time"
 )
