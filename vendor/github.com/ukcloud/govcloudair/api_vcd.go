@@ -1,27 +1,20 @@
 package govcloudair
 
 import (
-	//"bytes"
 	"crypto/tls"
-	//"encoding/xml"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
+	types "github.com/ukcloud/govcloudair/types/v56"
 	"sync"
 	"time"
-	//types "github.com/ukcloud/govcloudair/types/v56"
 )
 
 type VCDClient struct {
-	OrgHREF     url.URL // vCloud Director OrgRef
-	Org         Org     // Org
-	OrgVdc      Vdc     // Org vDC
 	Client      Client  // Client for the underlying VCD instance
 	sessionHREF url.URL // HREF for the session API
 	QueryHREF   url.URL // HREF for the query API
-	System      System  // System variable
 	Mutex       sync.Mutex
 }
 
@@ -34,7 +27,7 @@ type supportedVersions struct {
 
 func (c *VCDClient) vcdloginurl() error {
 
-	s := c.Client.VCDVDCHREF
+	s := c.Client.HREF
 	s.Path += "/versions"
 
 	// No point in checking for errors here
@@ -62,7 +55,7 @@ func (c *VCDClient) vcdloginurl() error {
 	return nil
 }
 
-func (c *VCDClient) vcdauthorize(user, pass, org string, is_admin bool) error {
+func (c *VCDClient) vcdauthorize(user, pass, org string) error {
 
 	if user == "" {
 		user = os.Getenv("VCLOUD_USERNAME")
@@ -76,22 +69,6 @@ func (c *VCDClient) vcdauthorize(user, pass, org string, is_admin bool) error {
 		org = os.Getenv("VCLOUD_ORG")
 	}
 
-	//gets HREF for normal api purposes
-	s := c.sessionHREF
-	sArr := strings.Split(s.Path, "/session")
-	s.Path = sArr[0]
-	c.Client.HREF = s
-
-	if is_admin {
-		s := NewSystemClient(&c.Client)
-		c.System = *s
-		err := c.System.SystemAuthorize(user, pass)
-
-		if err != nil {
-			return fmt.Errorf("Cannot establish admin connection with error : %v", err)
-		}
-
-	}
 	req := c.Client.NewRequest(map[string]string{}, "POST", c.sessionHREF, nil)
 
 	// Set Basic Authentication Header
@@ -106,161 +83,14 @@ func (c *VCDClient) vcdauthorize(user, pass, org string, is_admin bool) error {
 	}
 	defer resp.Body.Close()
 
-	if !is_admin {
-		c.Client.VCDToken = resp.Header.Get("x-vcloud-authorization")
-		c.Client.VCDAuthHeader = "x-vcloud-authorization"
-	}
+	c.Client.VCDToken = resp.Header.Get("x-vcloud-authorization")
+	c.Client.VCDAuthHeader = "x-vcloud-authorization"
 
-	session := new(session)
-	err = decodeBody(resp, session)
-
-	if err != nil {
-		return fmt.Errorf("error decoding session response: %s", err)
-	}
-
-	org_found := false
-	// Loop in the session struct to find the organization and query api.
-	for _, s := range session.Link {
-		if s.Type == "application/vnd.vmware.vcloud.org+xml" && s.Rel == "down" {
-			u, err := url.Parse(s.HREF)
-			if err != nil {
-				return fmt.Errorf("couldn't find a Organization in current session, %v", err)
-			}
-			c.OrgHREF = *u
-			org_found = true
-		}
-		if s.Type == "application/vnd.vmware.vcloud.query.queryList+xml" && s.Rel == "down" {
-			u, err := url.Parse(s.HREF)
-			if err != nil {
-				return fmt.Errorf("couldn't find a Query API in current session, %v", err)
-			}
-			c.QueryHREF = *u
-		}
-	}
-	if !org_found {
-		return fmt.Errorf("couldn't find a Organization in current session")
-	}
-
-	// Loop in the session struct to find the session url.
-	session_found := false
-	for _, s := range session.Link {
-		if s.Rel == "remove" {
-			u, err := url.Parse(s.HREF)
-			if err != nil {
-				return fmt.Errorf("couldn't find a logout HREF in current session, %v", err)
-			}
-			c.sessionHREF = *u
-			session_found = true
-		}
-	}
-	if !session_found {
-		return fmt.Errorf("couldn't find a logout HREF in current session")
-	}
+	u := c.Client.HREF
+	u.Path += "/query"
+	c.QueryHREF = u
 
 	return nil
-}
-
-// //Fetches an org using the Org ID, which is the UUID in the Org HREF.
-// func (c *VCDClient) GetAdminOrgById(orgId string) (AdminOrg, error) {
-// 	s := c.Client.HREF
-// 	s.Path += "/admin/org/" + orgId
-
-// 	req := c.Client.NewRequest(map[string]string{}, "GET", s, nil)
-
-// 	req.Header.Add("Content-Type", "application/vnd.vmware.vcloud.org+xml")
-
-// 	resp, err := checkResp(c.Client.Http.Do(req))
-// 	if err != nil {
-// 		return AdminOrg{}, fmt.Errorf("error getting Org %s: %s", orgId, err)
-// 	}
-
-// 	org := NewAdminOrg(&c.Client)
-
-// 	if err = decodeBody(resp, org.AdminOrg); err != nil {
-// 		return AdminOrg{}, fmt.Errorf("error decoding org response: %s", err)
-// 	}
-
-// 	return *org, nil
-// }
-
-// //Creates an Organization based on settings, network, and org name
-// func (c *VCDClient) CreateOrg(org string, fullOrgName string, isEnabled bool, canPublishCatalogs bool, vmQuota int) (Task, error) {
-
-// 	settings := getOrgSettings(canPublishCatalogs, vmQuota)
-
-// 	vcomp := &types.AdminOrg{
-// 		Xmlns:       "http://www.vmware.com/vcloud/v1.5",
-// 		Name:        org,
-// 		IsEnabled:   isEnabled,
-// 		FullName:    fullOrgName,
-// 		OrgSettings: settings,
-// 	}
-
-// 	output, _ := xml.MarshalIndent(vcomp, "  ", "    ")
-
-// 	s := c.Client.HREF
-// 	s.Path += "/admin/orgs"
-
-// 	b := bytes.NewBufferString(xml.Header + string(output))
-
-// 	req := c.Client.NewRequest(map[string]string{}, "POST", s, b)
-
-// 	req.Header.Add("Content-Type", "application/vnd.vmware.admin.organization+xml")
-
-// 	resp, err := checkResp(c.Client.Http.Do(req))
-// 	if err != nil {
-// 		return Task{}, fmt.Errorf("error instantiating a new Org: %s", err)
-// 	}
-
-// 	task := NewTask(&c.Client)
-
-// 	if err = decodeBody(resp, task.Task); err != nil {
-// 		return Task{}, fmt.Errorf("error decoding task response: %s", err)
-// 	}
-
-// 	return *task, nil
-
-// }
-
-/* Retrieves an org resource. The Org nam is provided by the vcdname
-   parameter. Returns an error if the vCD call fails.
-*/
-func (c *VCDClient) RetrieveOrg(vcdname string) (Org, error) {
-
-	req := c.Client.NewRequest(map[string]string{}, "GET", c.OrgHREF, nil)
-	req.Header.Add("Accept", "application/*+xml;version=5.5")
-
-	// TODO: wrap into checkresp to parse error
-	resp, err := checkResp(c.Client.Http.Do(req))
-	if err != nil {
-		return Org{}, fmt.Errorf("error retreiving org: %s", err)
-	}
-
-	org := NewOrg(&c.Client)
-
-	if err = decodeBody(resp, org.Org); err != nil {
-		return Org{}, fmt.Errorf("error decoding org response: %s", err)
-	}
-
-	// Get the VDC ref from the Org
-	for _, s := range org.Org.Link {
-		if s.Type == "application/vnd.vmware.vcloud.vdc+xml" && s.Rel == "down" {
-			if vcdname != "" && s.Name != vcdname {
-				continue
-			}
-			u, err := url.Parse(s.HREF)
-			if err != nil {
-				return Org{}, err
-			}
-			c.Client.VCDVDCHREF = *u
-		}
-	}
-
-	if &c.Client.VCDVDCHREF == nil {
-		return Org{}, fmt.Errorf("error finding the organization VDC HREF")
-	}
-
-	return *org, nil
 }
 
 func NewVCDClient(vcdEndpoint url.URL, insecure bool) *VCDClient {
@@ -268,7 +98,7 @@ func NewVCDClient(vcdEndpoint url.URL, insecure bool) *VCDClient {
 	return &VCDClient{
 		Client: Client{
 			APIVersion: "5.5",
-			VCDVDCHREF: vcdEndpoint,
+			HREF:       vcdEndpoint,
 			Http: http.Client{
 				Transport: &http.Transport{
 					TLSClientConfig: &tls.Config{
@@ -283,32 +113,20 @@ func NewVCDClient(vcdEndpoint url.URL, insecure bool) *VCDClient {
 }
 
 // Authenticate is an helper function that performs a login in vCloud Director.
-func (c *VCDClient) Authenticate(username, password, org, vdcname string, is_admin bool) (Org, Vdc, error) {
+func (c *VCDClient) Authenticate(username, password, org string) error {
 
 	// LoginUrl
 	err := c.vcdloginurl()
 	if err != nil {
-		return Org{}, Vdc{}, fmt.Errorf("error finding LoginUrl: %s", err)
+		return fmt.Errorf("error finding LoginUrl: %s", err)
 	}
 	// Authorize
-	err = c.vcdauthorize(username, password, org, is_admin)
+	err = c.vcdauthorize(username, password, org)
 	if err != nil {
-		return Org{}, Vdc{}, fmt.Errorf("error authorizing: %s", err)
+		return fmt.Errorf("error authorizing: %s", err)
 	}
 
-	// Get Org
-	o, err := c.RetrieveOrg(vdcname)
-	if err != nil {
-		return Org{}, Vdc{}, fmt.Errorf("error acquiring Org: %s", err)
-	}
-
-	vdc, err := c.Client.retrieveVDC()
-
-	if err != nil {
-		return Org{}, Vdc{}, fmt.Errorf("error retrieving the organization VDC: %s : %s ", c.Client.VCDVDCHREF.Path, c.OrgHREF.Path)
-	}
-
-	return o, vdc, nil
+	return nil
 }
 
 // Disconnect performs a disconnection from the vCloud Director API endpoint.

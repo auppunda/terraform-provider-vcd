@@ -5,8 +5,8 @@ import (
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"net/url"
-	"testing"
 	"strings"
+	"testing"
 	//. "gopkg.in/check.v1"
 	//types "github.com/ukcloud/govcloudair/types/v56"
 )
@@ -27,19 +27,12 @@ func TestAuthenticate(t *testing.T) {
 		t.Errorf("Error retrieving vcd client: %v ", err)
 	}
 
-	o, v, err := vcdClient.Authenticate(g.User, g.Password, g.Orgname, g.Vdcname, true)
+	err = vcdClient.Authenticate(g.User, g.Password, "System")
 	if err != nil {
 		t.Errorf("Could not authenticate with user %s password %s url %s: %v", g.User, g.Password, g.Url, err)
 		t.Errorf("orgname : %s, vdcname : %s", g.Orgname, g.Vdcname)
 	}
-	if o == (Org{}) {
-		t.Errorf("empty org")
 
-	}
-
-	if v == (Vdc{}) {
-		t.Errorf("empty vdc")
-	}
 }
 
 func GetConfigStruct() (TestConfig, error) {
@@ -64,21 +57,20 @@ func GetTestVCDFromYaml(g TestConfig) (*VCDClient, error) {
 	return vcdClient, nil
 }
 
-
-// Creates an organization test, gets it, and then deletes it 
+// Creates an organization test, gets it, and then deletes it
 func TestCreateOrg(t *testing.T) {
 	g, err := GetConfigStruct()
 	vcdClient, err := GetTestVCDFromYaml(g)
 	if err != nil {
 		t.Errorf("Error retrieving vcd client: %v", err)
 	}
-	_, _, err = vcdClient.Authenticate(g.User, g.Password, g.Orgname, g.Vdcname, true)
+	err = vcdClient.Authenticate(g.User, g.Password, "System")
 	if err != nil {
 		t.Errorf("Could not authenticate with user %s password %s url %s: %v", g.User, g.Password, vcdClient.sessionHREF.Path, err)
 		t.Errorf("orgname : %s, vcdname : %s", g.Orgname, g.Vdcname)
 	}
 
-	task, err := vcdClient.System.CreateOrg(orgName, orgName, true, true, -1)
+	task, err := CreateOrg(vcdClient, orgName, orgName, true, true, -1)
 
 	if err != nil {
 		t.Errorf("Error while creating org: %v", err)
@@ -90,7 +82,7 @@ func TestCreateOrg(t *testing.T) {
 		t.Errorf("Task could not complete %v", err)
 	}
 
-	org, err := vcdClient.System.GetAdminOrgById(task.Task.ID[15:])
+	org, err := GetAdminOrgById(vcdClient, task.Task.ID[15:])
 
 	if err != nil {
 		t.Errorf("Org was not created")
@@ -110,17 +102,17 @@ func TestGetOrg(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error retrieving vcd client: %v", err)
 	}
-	org, _, err := vcdClient.Authenticate(g.User, g.Password, g.Orgname, g.Vdcname, true)
+	err = vcdClient.Authenticate(g.User, g.Password, "System")
 	if err != nil {
 		t.Errorf("Could not authenticate: %v", err)
 	}
 
-	returnOrg, err := vcdClient.System.GetAdminOrgById(org.Org.ID[15:])
+	returnOrg, err := GetAdminOrgFromName(vcdClient, g.Orgname)
 	if err != nil {
 		t.Errorf("Error getting org %v", err)
 	}
 
-	if returnOrg.AdminOrg.ID != org.Org.ID {
+	if returnOrg.AdminOrg.Name != g.Orgname {
 		t.Error("org ID do not match")
 	}
 }
@@ -131,13 +123,13 @@ func TestRetrieveOrg(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error retrieving vcd client: %v", err)
 	}
-	_, _, err = vcdClient.Authenticate(g.User, g.Password, g.Orgname, g.Vdcname, true)
+	err = vcdClient.Authenticate(g.User, g.Password, "System")
 	if err != nil {
 		t.Errorf("Could not authenticate with user %s password %s url %s: %v", g.User, g.Password, vcdClient.sessionHREF.Path, err)
 		t.Errorf("orgname : %s, vcdname : %s", g.Orgname, g.Vdcname)
 	}
 
-	org , err  := GetOrgFromName(vcdClient, g.Orgname) 
+	org, err := GetOrgFromName(vcdClient, g.Orgname)
 	if err != nil {
 		t.Errorf("Error retrieving Org: %v", err)
 	}
@@ -145,7 +137,7 @@ func TestRetrieveOrg(t *testing.T) {
 		t.Errorf("Got Wrong Org: %v", err)
 	}
 
-	//tests getting of adminOrg type 
+	//tests getting of adminOrg type
 
 	adminorg, err := GetAdminOrgFromName(vcdClient, g.Orgname)
 
@@ -168,7 +160,7 @@ func TestRetrieveOrg(t *testing.T) {
 		t.Errorf("Did not get AdminOrg Type from Conversion")
 	}
 
-	//tests conversion of adminOrg to org 
+	//tests conversion of adminOrg to org
 
 	org, err = GetOrgFromAdminOrg(vcdClient, adminorg)
 

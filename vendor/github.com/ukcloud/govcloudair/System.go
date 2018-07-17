@@ -1,59 +1,24 @@
 package govcloudair
 
 import (
-	"net/url"
-	"strings"
 	"bytes"
 	"encoding/xml"
 	"fmt"
 	types "github.com/ukcloud/govcloudair/types/v56"
+	"net/url"
+	"strings"
 )
 
-type System struct {
-	c *Client
-}
-
-func NewSystemClient(c *Client) *System {
-	return &System{
-		c: c,
-	}
-}
-
-func (s *System) SystemAuthorize(user, pass string) error {
-	u := s.c.HREF
-	u.Path += "/sessions"
-	req := s.c.NewRequest(map[string]string{}, "POST", u, nil)
-
-	// Set Basic Authentication Header
-	req.SetBasicAuth(user+"@System", pass)
-
-	// Add the Accept header for vCA
-	req.Header.Add("Accept", "application/*+xml;version=5.5")
-
-	resp, err := checkResp(s.c.Http.Do(req))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// Store the authentication header
-	s.c.VCDToken = resp.Header.Get("x-vcloud-authorization")
-	s.c.VCDAuthHeader = "x-vcloud-authorization"
-
-	return nil
-
-}
-
 //Creates an Organization based on settings, network, and org name
-func CreateOrg(c *VCDClient, org string, fullOrgName string, isEnabled bool, canPublishCatalogs bool, vmQuota int) (Task, error) {
+func CreateOrg(c *VCDClient, name string, fullName string, isEnabled bool, canPublishCatalogs bool, vmQuota int) (Task, error) {
 
 	settings := getOrgSettings(canPublishCatalogs, vmQuota)
 
 	vcomp := &types.AdminOrg{
 		Xmlns:       "http://www.vmware.com/vcloud/v1.5",
-		Name:        org,
+		Name:        name,
 		IsEnabled:   isEnabled,
-		FullName:    fullOrgName,
+		FullName:    fullName,
 		OrgSettings: settings,
 	}
 
@@ -83,54 +48,11 @@ func CreateOrg(c *VCDClient, org string, fullOrgName string, isEnabled bool, can
 
 }
 
-
-func GetVDCFromName(c *VCDClient, vdcname string, orgname string) (Vdc, error) {
-
-	o, err := GetOrgFromName(c, orgname)
-
-	if err != nil {
-		return Vdc{}, fmt.Errorf("Could not find org: %v", err)
-	}
-
-	HREF := ""
-	for _, a := range o.Org.Link {
-		if a.Type == "application/vnd.vmware.vcloud.vdc+xml" && a.Name == vdcname {
-			HREF = a.HREF
-			break
-		}
-	}
-
-	if HREF == "" {
-		return Vdc{}, fmt.Errorf("Error finding VDC from VDCName")
-	}
-
-	u, err := url.ParseRequestURI(HREF)
-
-	if err != nil {
-		return Vdc{}, fmt.Errorf("Error retrieving VDC: %v", err)
-	}
-	req := c.Client.NewRequest(map[string]string{}, "GET", *u , nil)
-
-	resp, err := checkResp(c.Client.Http.Do(req))
-	if err != nil {
-		return Vdc{}, fmt.Errorf("error retreiving vdc: %s", err)
-	}
-
-	vdc := NewVdc(&c.Client)
-
-	if err = decodeBody(resp, vdc.Vdc); err != nil {
-		return Vdc{}, fmt.Errorf("error decoding vdc response: %s", err)
-	}
-
-	// The request was successful
-	return *vdc, nil
-}
-
+//Gets Org HREF as a string from the organization name
 func getOrgHREF(c *VCDClient, orgname string) (string, error) {
 	s := c.Client.HREF
 	s.Path += "/org"
-	req := c.Client.NewRequest(map[string]string{}, "GET", s , nil)
-
+	req := c.Client.NewRequest(map[string]string{}, "GET", s, nil)
 
 	resp, err := checkResp(c.Client.Http.Do(req))
 	if err != nil {
@@ -142,7 +64,7 @@ func getOrgHREF(c *VCDClient, orgname string) (string, error) {
 		return "", fmt.Errorf("error decoding vdc response: %s", err)
 	}
 
-	for _, a := range orgList.Org  {
+	for _, a := range orgList.Org {
 		if a.Name == orgname {
 			return a.HREF, nil
 		}
@@ -150,13 +72,13 @@ func getOrgHREF(c *VCDClient, orgname string) (string, error) {
 
 	return "", fmt.Errorf("Couldn't find org with name: %s", orgname)
 
-
 }
 
+//If user specifies valid organization name, then this returns a organization object
 func GetOrgFromName(c *VCDClient, orgname string) (Org, error) {
 
 	o := NewOrg(&c.Client)
-	
+
 	HREF, err := getOrgHREF(c, orgname)
 	if err != nil {
 		return Org{}, fmt.Errorf("Cannot find OrgHREF: %s", err)
@@ -167,7 +89,7 @@ func GetOrgFromName(c *VCDClient, orgname string) (Org, error) {
 		return Org{}, fmt.Errorf("Error parsing org href: %v", err)
 	}
 
-	req := c.Client.NewRequest(map[string]string{}, "GET", *u , nil)
+	req := c.Client.NewRequest(map[string]string{}, "GET", *u, nil)
 
 	resp, err := checkResp(c.Client.Http.Do(req))
 	if err != nil {
@@ -181,17 +103,18 @@ func GetOrgFromName(c *VCDClient, orgname string) (Org, error) {
 	return *o, nil
 }
 
+//If user specifies admin Org object, then this returns an analogous organization object
 func GetOrgFromAdminOrg(c *VCDClient, adminOrg AdminOrg) (Org, error) {
 	o := NewOrg(&c.Client)
 
 	s := c.Client.HREF
 	s.Path += "/org/" + adminOrg.AdminOrg.ID[15:]
 
-	req := c.Client.NewRequest(map[string]string{}, "GET", s , nil)
+	req := c.Client.NewRequest(map[string]string{}, "GET", s, nil)
 
 	resp, err := checkResp(c.Client.Http.Do(req))
 	if err != nil {
-		return Org{}, fmt.Errorf("error fetching Org : %s", err) 
+		return Org{}, fmt.Errorf("error fetching Org : %s", err)
 	}
 
 	if err = decodeBody(resp, o.Org); err != nil {
@@ -201,9 +124,10 @@ func GetOrgFromAdminOrg(c *VCDClient, adminOrg AdminOrg) (Org, error) {
 	return *o, nil
 }
 
+//If user specifies valid organization name, then this returns an admin organization object
 func GetAdminOrgFromName(c *VCDClient, orgname string) (AdminOrg, error) {
 	o := NewAdminOrg(&c.Client)
-	
+
 	HREF, err := getOrgHREF(c, orgname)
 	if err != nil {
 		return AdminOrg{}, fmt.Errorf("Cannot find OrgHREF: %s", err)
@@ -212,7 +136,7 @@ func GetAdminOrgFromName(c *VCDClient, orgname string) (AdminOrg, error) {
 	u := c.Client.HREF
 	u.Path += "/admin/org/" + strings.Split(HREF, "/org/")[1]
 
-	req := c.Client.NewRequest(map[string]string{}, "GET", u , nil)
+	req := c.Client.NewRequest(map[string]string{}, "GET", u, nil)
 
 	resp, err := checkResp(c.Client.Http.Do(req))
 	if err != nil {
@@ -226,17 +150,18 @@ func GetAdminOrgFromName(c *VCDClient, orgname string) (AdminOrg, error) {
 	return *o, nil
 }
 
+//If user specifies a valid organization, then this returns an analogous admin organization object
 func GetAdminOrgFromOrg(c *VCDClient, org Org) (AdminOrg, error) {
 	o := NewAdminOrg(&c.Client)
 
 	s := c.Client.HREF
-	s.Path += "/admin/org/" +org.Org.ID[15:]
+	s.Path += "/admin/org/" + org.Org.ID[15:]
 
-	req := c.Client.NewRequest(map[string]string{}, "GET", s , nil)
+	req := c.Client.NewRequest(map[string]string{}, "GET", s, nil)
 
 	resp, err := checkResp(c.Client.Http.Do(req))
 	if err != nil {
-		return AdminOrg{}, fmt.Errorf("error fetching Org : %s", err) 
+		return AdminOrg{}, fmt.Errorf("error fetching Org : %s", err)
 	}
 
 	if err = decodeBody(resp, o.AdminOrg); err != nil {
@@ -246,7 +171,7 @@ func GetAdminOrgFromOrg(c *VCDClient, org Org) (AdminOrg, error) {
 	return *o, nil
 }
 
-//Fetches an org using the Org ID, which is the UUID in the Org HREF.
+//Fetches an org using the Org ID, which is the UUID in the Org HREF. Returns it in admin org form
 func GetAdminOrgById(c *VCDClient, orgId string) (AdminOrg, error) {
 	u := c.Client.HREF
 	u.Path += "/admin/org/" + orgId

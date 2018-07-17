@@ -5,11 +5,11 @@
 package govcloudair
 
 import (
- 	"net/url"
 	"bytes"
 	"encoding/xml"
 	"fmt"
 	types "github.com/ukcloud/govcloudair/types/v56"
+	"net/url"
 )
 
 type VAppTemplate struct {

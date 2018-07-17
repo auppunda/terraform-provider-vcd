@@ -41,7 +41,42 @@ func NewOrg(c *Client) *Org {
 	}
 }
 
+//If user specifies valid organization name and vdc name, then this returns a vdc object
+func (o *Org) GetVDCFromName(vdcname string) (Vdc, error) {
 
+	HREF := ""
+	for _, a := range o.Org.Link {
+		if a.Type == "application/vnd.vmware.vcloud.vdc+xml" && a.Name == vdcname {
+			HREF = a.HREF
+			break
+		}
+	}
+
+	if HREF == "" {
+		return Vdc{}, fmt.Errorf("Error finding VDC from VDCName")
+	}
+
+	u, err := url.ParseRequestURI(HREF)
+
+	if err != nil {
+		return Vdc{}, fmt.Errorf("Error retrieving VDC: %v", err)
+	}
+	req := o.c.NewRequest(map[string]string{}, "GET", *u, nil)
+
+	resp, err := checkResp(o.c.Http.Do(req))
+	if err != nil {
+		return Vdc{}, fmt.Errorf("error retreiving vdc: %s", err)
+	}
+
+	vdc := NewVdc(o.c)
+
+	if err = decodeBody(resp, vdc.Vdc); err != nil {
+		return Vdc{}, fmt.Errorf("error decoding vdc response: %s", err)
+	}
+
+	// The request was successful
+	return *vdc, nil
+}
 
 //   Refetches the underlying org resource so that all resource URLs are
 //   current. You must call this if you wish to ensure Org state is current,
@@ -83,10 +118,6 @@ func (o *Org) Refresh() error {
 //   Deletes the org, returning an error if the vCD call fails.
 //   This call is idempotent and may be safely called on a non-existent org.
 func (o *AdminOrg) Delete(force bool, recursive bool) error {
-	// err := o.Refresh()
-	// if err != nil  {
-	// 	return err
-	// }
 
 	if force && recursive {
 

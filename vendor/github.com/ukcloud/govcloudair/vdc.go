@@ -28,25 +28,6 @@ func NewVdc(c *Client) *Vdc {
 	}
 }
 
-func (c *Client) retrieveVDC() (Vdc, error) {
-
-	req := c.NewRequest(map[string]string{}, "GET", c.VCDVDCHREF, nil)
-
-	resp, err := checkResp(c.Http.Do(req))
-	if err != nil {
-		return Vdc{}, fmt.Errorf("error retreiving vdc: %s", err)
-	}
-
-	vdc := NewVdc(c)
-
-	if err = decodeBody(resp, vdc.Vdc); err != nil {
-		return Vdc{}, fmt.Errorf("error decoding vdc response: %s", err)
-	}
-
-	// The request was successful
-	return *vdc, nil
-}
-
 func (v *Vdc) Refresh() error {
 
 	if v.Vdc.HREF == "" {
@@ -95,10 +76,7 @@ func (v *Vdc) getVdcVApp(u *url.URL) (*VApp, error) {
 
 //undeploys all vapps part of the vdc
 func (v *Vdc) undeployAllVdcVApps() error {
-	// err := v.Refresh()
-	// if err != nil {
-	// 	return fmt.Errorf("error refreshing vdc: %s", err)
-	// }
+
 	for _, resents := range v.Vdc.ResourceEntities {
 		for _, resent := range resents.ResourceEntity {
 
@@ -130,10 +108,6 @@ func (v *Vdc) undeployAllVdcVApps() error {
 
 //removes all vapps within the vdc
 func (v *Vdc) removeAllVdcVApps() error {
-	// err := v.Refresh()
-	// if err != nil {
-	// 	return fmt.Errorf("error refreshing vdc: %s", err)
-	// }
 
 	for _, resents := range v.Vdc.ResourceEntities {
 		for _, resent := range resents.ResourceEntity {
@@ -223,38 +197,6 @@ func (v *Vdc) GetDefaultStorageProfileReference(storageprofiles *types.QueryResu
 	return types.Reference{}, fmt.Errorf("can't find Default VDC Storage_profile")
 }
 
-// // Doesn't work with vCloud API 5.5, only vCloud Air
-// func (v *Vdc) GetVDCOrg() (Org, error) {
-
-// 	for _, av := range v.Vdc.Link {
-// 		if av.Rel == "up" && av.Type == "application/vnd.vmware.vcloud.org+xml" {
-// 			u, err := url.ParseRequestURI(av.HREF)
-
-// 			if err != nil {
-// 				return Org{}, fmt.Errorf("error decoding vdc response: %s", err)
-// 			}
-
-// 			req := v.c.NewRequest(map[string]string{}, "GET", *u, nil)
-
-// 			resp, err := checkResp(v.c.Http.Do(req))
-// 			if err != nil {
-// 				return Org{}, fmt.Errorf("error retreiving org: %s", err)
-// 			}
-
-// 			org := NewOrg(v.c)
-
-// 			if err = decodeBody(resp, org.Org); err != nil {
-// 				return Org{}, fmt.Errorf("error decoding org response: %s", err)
-// 			}
-
-// 			// The request was successful
-// 			return *org, nil
-
-// 		}
-// 	}
-// 	return Org{}, fmt.Errorf("can't find VDC Org")
-// }
-
 func (v *Vdc) FindEdgeGateway(edgegateway string) (EdgeGateway, error) {
 
 	for _, av := range v.Vdc.Link {
@@ -329,9 +271,9 @@ func (v *Vdc) ComposeRawVApp(name string) error {
 
 	b := bytes.NewBufferString(xml.Header + string(output))
 
-	s,err := url.ParseRequestURI(v.Vdc.HREF)
+	s, err := url.ParseRequestURI(v.Vdc.HREF)
 	if err != nil {
-		return fmt.Errorf("error parsing the vdc href: %v" , err)
+		return fmt.Errorf("error parsing the vdc href: %v", err)
 	}
 	s.Path += "/action/composeVApp"
 
@@ -357,7 +299,6 @@ func (v *Vdc) ComposeRawVApp(name string) error {
 
 	return nil
 }
-
 
 func (v *Vdc) ComposeVApp(orgvdcnetwork OrgVDCNetwork, vapptemplate VAppTemplate, storageprofileref types.Reference, name string, description string) (Task, VApp, error) {
 
