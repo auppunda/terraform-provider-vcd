@@ -51,7 +51,7 @@ resource "vcd_vapp" "test-tf-2" {
  
 }
 
-resource "vcd_org" "test5"{
+resource "vcd_org" "test5" {
   name = "test5"
   full_name = "test5"
   is_enabled = "true"
@@ -61,7 +61,7 @@ resource "vcd_org" "test5"{
   recursive = "true"
 }
 
-resource "vcd_org" "test4"{
+resource "vcd_org" "test4" {
   name = "test4"
   full_name = "test4"
   is_enabled = "true"
