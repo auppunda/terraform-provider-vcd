@@ -13,9 +13,9 @@ resource "vcd_dnat" "web2" {
   edge_gateway = "test_edge_3"
   org = "au"
   vdc = "au-vdc"
-  external_ip  = "10.150.211.55"
+  external_ip  = "10.x.x.x"
   port         = 80
-  internal_ip  = "192.168.102.101"
+  internal_ip  = "10.x.x.x"
   translated_port = 8080
 }
 
@@ -23,8 +23,8 @@ resource "vcd_snat" "outbound" {
   edge_gateway = "test_edge_3"
   org = "au"
   vdc = "au-vdc"
-  external_ip  = "10.150.211.55"
-  internal_ip  = "192.168.1.2/24"
+  external_ip  = "10.x.x.x"
+  internal_ip  = "10.x.x.x"
 }
 resource "vcd_network" "net" {
   name         = "my-nt"
