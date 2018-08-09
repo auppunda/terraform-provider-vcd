@@ -65,7 +65,7 @@ func (t *Task) WaitTaskCompletion() error {
 
 		// If task is not in a waiting status we're done, check if there's an error and return it.
 		if t.Task.Status != "queued" && t.Task.Status != "preRunning" && t.Task.Status != "running" {
-			if t.Task.Status == "error" && t.Task.Description != "" {
+			if t.Task.Status == "error" {
 				return fmt.Errorf("task did not complete succesfully: %s", t.Task.Description)
 			}
 			return nil
