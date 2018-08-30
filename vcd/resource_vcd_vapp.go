@@ -91,7 +91,7 @@ func resourceVcdVApp() *schema.Resource {
 				Optional: true,
 				Default:  true,
 			},
-			"accept_all_eulas:": {
+			"accept_all_eulas": {
 				Type:     schema.TypeBool,
 				Optional: true,
 				Default:  true,
