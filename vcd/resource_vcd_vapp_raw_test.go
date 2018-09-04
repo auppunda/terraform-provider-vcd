@@ -19,7 +19,7 @@ func TestAccVcdVAppRaw_Basic(t *testing.T) {
 		CheckDestroy: testAccCheckVcdVAppRawDestroy,
 		Steps: []resource.TestStep{
 			resource.TestStep{
-				Config: fmt.Sprintf(testAccCheckVcdVAppRaw_basic, testOrg, testVDC, os.Getenv("VCD_EDGE_GATEWAY")),
+				Config: fmt.Sprintf(testAccCheckVcdVAppRaw_basic, testOrg, testVDC, os.Getenv("VCD_EDGE_GATEWAY"), testOrg, testVDC, testOrg, testVDC),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckVcdVAppRawExists("vcd_vapp.foobar", &vapp),
 					resource.TestCheckResourceAttr(
@@ -102,10 +102,14 @@ resource "vcd_network" "foonet" {
 }
 
 resource "vcd_vapp" "foobar" {
+  org          = "%s"
+  vdc          = "%s"
   name = "foobar"
 }
 
 resource "vcd_vapp_vm" "moo" {
+  org          = "%s"
+  vdc          = "%s"
   vapp_name     = "${vcd_vapp.foobar.name}"
   name          = "moo"
   catalog_name  = "Skyscape Catalogue"

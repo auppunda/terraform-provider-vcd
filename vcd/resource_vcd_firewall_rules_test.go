@@ -108,7 +108,7 @@ const testAccCheckVcdFirewallRules_add = `
 resource "vcd_firewall_rules" "bar" {
 	org            = "%s"
 	vdc            = "%s"
-  edge_gateway = "%s"
+    edge_gateway = "%s"
 	default_action = "%s"
 
 	rule {

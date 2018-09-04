@@ -10,8 +10,8 @@ import (
 
 var testAccProviders map[string]terraform.ResourceProvider
 var testAccProvider *schema.Provider
-var testOrg = ""
-var testVDC = ""
+var testOrg = os.Getenv("VCD_TEST_ORG")
+var testVDC = os.Getenv("VCD_VDC")
 
 func init() {
 	testAccProvider = Provider().(*schema.Provider)
@@ -37,7 +37,7 @@ func testAccPreCheck(t *testing.T) {
 	if v := os.Getenv("VCD_PASSWORD"); v == "" {
 		t.Fatal("VCD_PASSWORD must be set for acceptance tests")
 	}
-	if testOrg = os.Getenv("VCD_ORG"); testOrg == "" {
+	if testOrg == "" {
 		t.Fatal("VCD_ORG must be set for acceptance tests")
 	}
 	if v := os.Getenv("VCD_URL"); v == "" {
@@ -46,7 +46,7 @@ func testAccPreCheck(t *testing.T) {
 	if v := os.Getenv("VCD_EDGE_GATEWAY"); v == "" {
 		t.Fatal("VCD_EDGE_GATEWAY must be set for acceptance tests")
 	}
-	if testVDC = os.Getenv("VCD_VDC"); testVDC == "" {
+	if testVDC == "" {
 		t.Fatal("VCD_VDC must be set for acceptance tests")
 	}
 }

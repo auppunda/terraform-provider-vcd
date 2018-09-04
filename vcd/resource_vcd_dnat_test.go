@@ -15,7 +15,6 @@ func TestAccVcdDNAT_Basic(t *testing.T) {
 		t.Skip("Environment variable VCD_EXTERNAL_IP must be set to run DNAT tests")
 		return
 	}
-
 	var e govcd.EdgeGateway
 
 	resource.Test(t, resource.TestCase{
@@ -44,7 +43,7 @@ func TestAccVcdDNAT_tlate(t *testing.T) {
 		t.Skip("Environment variable VCD_EXTERNAL_IP must be set to run DNAT tests")
 		return
 	}
-
+	fmt.Printf(testOrg)
 	var e govcd.EdgeGateway
 
 	resource.Test(t, resource.TestCase{
@@ -89,8 +88,8 @@ func testAccCheckVcdDNATExists(n string, gateway *govcd.EdgeGateway) resource.Te
 			return fmt.Errorf("Could not find test Org")
 		}
 		vdc, err := org.GetVdcByName(testVDC)
-		if err != nil {
-			return fmt.Errorf("Could not find test Vdc")
+		if err != nil || vdc == (govcd.Vdc{}) {
+			return fmt.Errorf("Could not find test Vdc %s", testVDC)
 		}
 		edgeGateway, err := vdc.FindEdgeGateway(gatewayName)
 
@@ -131,6 +130,7 @@ func testAccCheckVcdDNATtlateExists(n string, gateway *govcd.EdgeGateway) resour
 		conn := testAccProvider.Meta().(*VCDClient)
 
 		gatewayName := rs.Primary.Attributes["edge_gateway"]
+		fmt.Printf(testOrg)
 		org, err := govcd.GetOrgByName(conn.VCDClient, testOrg)
 		if err != nil {
 			return fmt.Errorf("Could not find test Org")
